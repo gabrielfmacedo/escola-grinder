@@ -8,7 +8,7 @@ interface Profile { id: string; full_name: string; email: string }
 interface Group {
   id: string
   name: string
-  color: string
+  color: string | null
   description: string | null
   player_group_members: { user_id: string }[]
 }
@@ -174,7 +174,7 @@ export default function GruposAdmin({
             <div key={g.id} className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl overflow-hidden">
               {/* Group header */}
               <div className="flex items-center gap-3 px-5 py-4">
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: g.color }} />
+                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: g.color ?? PALETTE[0] }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-white">{g.name}</p>
                   {g.description && <p className="text-xs text-[var(--text-muted)] truncate">{g.description}</p>}
