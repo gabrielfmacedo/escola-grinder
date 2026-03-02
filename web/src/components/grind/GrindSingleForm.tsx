@@ -45,9 +45,15 @@ export default function GrindSingleForm({
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    if (!platformId) {
+      setError('Plataforma não identificada.')
+      setLoading(false)
+      return
+    }
+
     const { error: dbError } = await supabase.from('poker_sessions').insert({
       user_id: user!.id,
-      platform_id: platformId,
+      platform_id: platformId as string,
       played_at: new Date().toISOString().split('T')[0],
       game_type: gameType,
       tournament_name: tournamentName,
