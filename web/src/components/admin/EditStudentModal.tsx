@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface Group { id: string; name: string; color: string }
+interface Group { id: string; name: string; color: string | null }
 
 interface EditStudentModalProps {
   student: { id: string; full_name: string; role: string }
@@ -105,8 +105,8 @@ export default function EditStudentModal({ student, groups, memberGroupIds, onCl
                         ? 'text-white border-transparent'
                         : 'text-[var(--text-dim)] border-[var(--border)] hover:border-[var(--border-hi)]'
                     )}
-                    style={selectedGroups.has(g.id) ? { background: g.color + '30', border: `1px solid ${g.color}50`, color: g.color } : {}}>
-                    <span className="w-2 h-2 rounded-full" style={{ background: g.color }} />
+                    style={selectedGroups.has(g.id) ? { background: (g.color ?? '#3b9ef5') + '30', border: `1px solid ${g.color ?? '#3b9ef5'}50`, color: g.color ?? '#3b9ef5' } : {}}>
+                    <span className="w-2 h-2 rounded-full" style={{ background: g.color ?? '#3b9ef5' }} />
                     {g.name}
                   </button>
                 ))}

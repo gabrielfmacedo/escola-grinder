@@ -31,7 +31,7 @@ interface LessonProgressItem {
 interface Group {
   id: string
   name: string
-  color: string
+  color: string | null
 }
 
 interface Profile {
@@ -155,7 +155,7 @@ export default function StudentDetail({
                 </span>
                 {groups.map(g => (
                   <span key={g.id} className="text-[11px] px-2 py-0.5 rounded-full font-medium text-white"
-                    style={{ background: `${g.color}30`, border: `1px solid ${g.color}50`, color: g.color }}>
+                    style={{ background: `${g.color ?? '#3b9ef5'}30`, border: `1px solid ${g.color ?? '#3b9ef5'}50`, color: g.color ?? '#3b9ef5' }}>
                     {g.name}
                   </span>
                 ))}
@@ -203,7 +203,7 @@ export default function StudentDetail({
                 tickFormatter={v => `$${v}`} />
               <Tooltip
                 contentStyle={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
-                formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro acumulado']}
+                formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro acumulado']}
               />
               <Line type="monotone" dataKey="profit" stroke={isProfitable ? 'var(--green)' : 'var(--red)'}
                 strokeWidth={2} dot={false} />

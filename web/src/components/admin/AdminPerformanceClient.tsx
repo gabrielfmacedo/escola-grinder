@@ -48,7 +48,7 @@ interface LessonProgress {
 interface Group {
   id: string
   name: string
-  color: string
+  color: string | null
   description: string | null
 }
 
@@ -209,19 +209,19 @@ export default function AdminPerformanceClient({
 
       {isSinglePlayer
         ? <SinglePlayerView
-            profile={profileMap.get(selectedPlayerId)!}
-            sessions={filteredSessions}
-            progress={progressByUser.get(selectedPlayerId)}
-            summary={summaries.find(s => s.user_id === selectedPlayerId)}
-            onViewDetail={() => router.push(`/admin/alunos/${selectedPlayerId}`)}
-          />
+          profile={profileMap.get(selectedPlayerId)!}
+          sessions={filteredSessions}
+          progress={progressByUser.get(selectedPlayerId)}
+          summary={summaries.find(s => s.user_id === selectedPlayerId)}
+          onViewDetail={() => router.push(`/admin/alunos/${selectedPlayerId}`)}
+        />
         : <OverviewView
-            summaries={filteredSummaries}
-            profileMap={profileMap}
-            progressByUser={progressByUser}
-            sessions={filteredSessions}
-            onRowClick={(id) => router.push(`/admin/alunos/${id}`)}
-          />
+          summaries={filteredSummaries}
+          profileMap={profileMap}
+          progressByUser={progressByUser}
+          sessions={filteredSessions}
+          onRowClick={(id) => router.push(`/admin/alunos/${id}`)}
+        />
       }
     </div>
   )
@@ -229,7 +229,7 @@ export default function AdminPerformanceClient({
 
 // ── Scope Button ───────────────────────────────────────────────────────────
 function ScopeButton({ children, active, onClick, color }: {
-  children: React.ReactNode; active: boolean; onClick: () => void; color?: string
+  children: React.ReactNode; active: boolean; onClick: () => void; color?: string | null
 }) {
   return (
     <button onClick={onClick}
@@ -240,7 +240,7 @@ function ScopeButton({ children, active, onClick, color }: {
           : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)] hover:text-white'
       )}
     >
-      {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />}
+      {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color ?? '#3b9ef5' }} />}
       {children}
     </button>
   )
@@ -557,7 +557,7 @@ function SinglePlayerView({
                 tickFormatter={v => `$${v}`} />
               <Tooltip
                 contentStyle={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
-                formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro acumulado']}
+                formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro acumulado']}
               />
               <Line type="monotone" dataKey="profit" stroke={isProfitable ? 'var(--green)' : 'var(--red)'}
                 strokeWidth={2} dot={false} />
