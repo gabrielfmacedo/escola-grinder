@@ -13,10 +13,15 @@ export default async function AdminConteudosPage() {
   if (!profile || !['admin', 'instructor'].includes(profile.role)) redirect('/dashboard')
 
   const admin = createAdminClient()
-  const { data: courses } = await admin
-    .from('courses')
-    .select('id, title, slug, description, thumbnail_url, required_plan, is_published, order_index, modules(id, title, order_index, lessons(id, title, type, order_index, duration_minutes))')
-    .order('order_index')
+  const [{ data: courses }, { data: tags }, { data: courseTags }, { data: lessonTags }] = await Promise.all([
+    admin
+      .from('courses')
+      .select('id, title, slug, description, thumbnail_url, required_plan, is_published, order_index, modules(id, title, order_index, lessons(id, title, type, order_index, duration_minutes))')
+      .order('order_index'),
+    admin.from('tags').select('*').order('name'),
+    admin.from('course_tags').select('course_id, tag_id'),
+    admin.from('lesson_tags').select('lesson_id, tag_id'),
+  ])
 
   const published = courses?.filter(c => c.is_published).length ?? 0
   const drafts    = courses?.filter(c => !c.is_published).length ?? 0
@@ -48,7 +53,12 @@ export default async function AdminConteudosPage() {
       </div>
 
       {/* Course list + management */}
-      <AdminCourseList initialCourses={courses ?? []} />
+      <AdminCourseList
+        initialCourses={courses ?? []}
+        initialTags={tags ?? []}
+        initialCourseTags={courseTags ?? []}
+        initialLessonTags={lessonTags ?? []}
+      />
     </div>
   )
 }

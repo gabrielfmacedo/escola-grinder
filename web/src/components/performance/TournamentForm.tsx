@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { GameType } from '@/lib/supabase/types'
-import { Monitor, MapPin } from 'lucide-react'
+import { Monitor, MapPin, Trophy } from 'lucide-react'
 
 interface Platform { id: string; name: string }
 
@@ -66,7 +66,15 @@ export default function TournamentForm({
     entries: '1',
     position: '',
     notes: '',
+    itm: false,
   })
+
+  // Auto-check ITM when prize > 0
+  useEffect(() => {
+    if (parseFloat(form.prize) > 0) {
+      setForm(f => ({ ...f, itm: true }))
+    }
+  }, [form.prize])
 
   function set(field: string, value: string | boolean) {
     setForm(f => ({ ...f, [field]: value }))
@@ -100,6 +108,7 @@ export default function TournamentForm({
         position: form.position ? parseInt(form.position) : null,
         notes: form.notes || null,
         grind_session_id: grindSessionId ?? null,
+        itm: form.itm,
       }),
     })
 
@@ -210,6 +219,27 @@ export default function TournamentForm({
             placeholder="0.00" className={inputCls()} />
         </Field>
       </div>
+
+      {/* ITM */}
+      <button
+        type="button"
+        onClick={() => setForm(f => ({ ...f, itm: !f.itm }))}
+        className={cn(
+          'flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors w-full',
+          form.itm
+            ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
+            : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
+        )}
+      >
+        <Trophy size={14} />
+        <span>Fiquei ITM (In The Money)</span>
+        <div className={cn(
+          'ml-auto w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+          form.itm ? 'bg-[var(--gold)] border-[var(--gold)]' : 'border-[var(--border)]'
+        )}>
+          {form.itm && <div className="w-2 h-2 rounded-sm bg-black" />}
+        </div>
+      </button>
 
       {/* Preview do resultado */}
       {form.buy_in && (

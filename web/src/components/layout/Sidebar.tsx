@@ -18,6 +18,7 @@ import {
   Zap,
   CalendarDays,
   Megaphone,
+  Wallet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase/types'
@@ -33,6 +34,7 @@ const NAV_PRIMARY: NavItem[] = [
   { label: 'Dashboard',   href: '/dashboard',   icon: LayoutDashboard },
   { label: 'Conteúdos',   href: '/conteudos',   icon: Layers },
   { label: 'Performance', href: '/performance', icon: TrendingUp },
+  { label: 'Banca',       href: '/banca',       icon: Wallet },
   { label: 'Modo Grind',  href: '/grind',       icon: Zap },
   { label: 'Calendário',  href: '/calendario',  icon: CalendarDays },
   { label: 'Ranking',     href: '/ranking',     icon: Trophy },

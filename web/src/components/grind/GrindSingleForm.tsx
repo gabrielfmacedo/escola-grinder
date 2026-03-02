@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Loader2, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { GameType } from '@/lib/supabase/types'
 
@@ -25,8 +25,14 @@ export default function GrindSingleForm({
   const [entries, setEntries] = useState('1')
   const [prize, setPrize] = useState('')
   const [position, setPosition] = useState('')
+  const [itm, setItm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Auto-check ITM when prize > 0
+  useEffect(() => {
+    if (parseFloat(prize) > 0) setItm(true)
+  }, [prize])
 
   const baseBuyIn = buyInCents ?? 0
   const totalBuyIn = baseBuyIn * (parseInt(entries) || 1)
@@ -61,6 +67,7 @@ export default function GrindSingleForm({
         entries: entriesInt,
         position: position ? parseInt(position) : null,
         grind_session_id: grindSessionId,
+        itm,
       }),
     })
 
@@ -75,6 +82,7 @@ export default function GrindSingleForm({
     setEntries('1')
     setPrize('')
     setPosition('')
+    setItm(false)
     onSuccess()
   }
 
@@ -128,6 +136,27 @@ export default function GrindSingleForm({
           className={inputCls}
         />
       </div>
+
+      {/* ITM */}
+      <button
+        type="button"
+        onClick={() => setItm(v => !v)}
+        className={cn(
+          'flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors w-full',
+          itm
+            ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
+            : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
+        )}
+      >
+        <Trophy size={13} />
+        <span>Fiquei ITM</span>
+        <div className={cn(
+          'ml-auto w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+          itm ? 'bg-[var(--gold)] border-[var(--gold)]' : 'border-[var(--border)]'
+        )}>
+          {itm && <div className="w-2 h-2 rounded-sm bg-black" />}
+        </div>
+      </button>
 
       {/* Preview resultado */}
       <div className={cn(

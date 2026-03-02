@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, Plus, TrendingUp, TrendingDown, DollarSign, Target, XCircle, Loader2 } from 'lucide-react'
+import { Clock, Plus, TrendingUp, TrendingDown, DollarSign, Target, XCircle, Loader2, CalendarCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TournamentForm from '@/components/performance/TournamentForm'
 import GrindSingleForm from '@/components/grind/GrindSingleForm'
@@ -61,6 +61,7 @@ export default function GrindSession({
   const [showForm, setShowForm] = useState(false)
   const [ending, setEnding] = useState(false)
   const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const [sessionEnded, setSessionEnded] = useState(false)
   const [elapsed, setElapsed] = useState(0)
 
   // Live timer
@@ -95,8 +96,8 @@ export default function GrindSession({
       body: JSON.stringify({ id: session.id }),
     })
     if (res.ok) {
-      router.push('/performance')
-      router.refresh()
+      setSessionEnded(true)
+      setEnding(false)
     } else {
       setEnding(false)
     }
@@ -265,17 +266,37 @@ export default function GrindSession({
             <span>{totalProfit >= 0 ? '+' : ''}{formatCents(totalProfit)}</span>
           </div>
 
-          <div className="flex gap-3 pt-1">
-            <button onClick={() => setShowEndConfirm(false)}
-              className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-dim)] text-sm hover:bg-white/5 transition-colors">
-              Continuar jogando
-            </button>
-            <button onClick={handleEnd} disabled={ending}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--red)]/15 border border-[var(--red)]/40 text-[var(--red)] hover:bg-[var(--red)]/25 font-bold text-sm transition-colors disabled:opacity-50">
-              {ending ? <Loader2 size={14} className="animate-spin" /> : null}
-              {ending ? 'Encerrando...' : 'Confirmar Encerramento'}
-            </button>
-          </div>
+          {sessionEnded ? (
+            <div className="space-y-3 pt-1">
+              <p className="text-xs text-[var(--green)] font-semibold text-center">Sessão encerrada!</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => router.push('/banca')}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--gold)]/10 border border-[var(--gold)]/40 text-[var(--gold)] font-bold text-sm hover:bg-[var(--gold)]/20 transition-colors"
+                >
+                  <CalendarCheck size={14} /> Fechar Caixa
+                </button>
+                <button
+                  onClick={() => { router.push('/performance'); router.refresh() }}
+                  className="flex-1 py-2.5 rounded-xl bg-[var(--cyan)] hover:bg-[var(--cyan-light)] text-white font-bold text-sm transition-colors"
+                >
+                  Ver Performance
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setShowEndConfirm(false)}
+                className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-dim)] text-sm hover:bg-white/5 transition-colors">
+                Continuar jogando
+              </button>
+              <button onClick={handleEnd} disabled={ending}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[var(--red)]/15 border border-[var(--red)]/40 text-[var(--red)] hover:bg-[var(--red)]/25 font-bold text-sm transition-colors disabled:opacity-50">
+                {ending ? <Loader2 size={14} className="animate-spin" /> : null}
+                {ending ? 'Encerrando...' : 'Confirmar Encerramento'}
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">

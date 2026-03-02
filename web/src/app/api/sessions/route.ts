@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     position,
     notes,
     grind_session_id,
+    itm,
   } = body
 
   // Validate required fields
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
       position: (position as number) ?? null,
       notes: (notes as string) ?? null,
       grind_session_id: (grind_session_id as string) ?? null,
+      itm: (itm as boolean) ?? false,
     })
     .select('id')
     .single()

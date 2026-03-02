@@ -11,6 +11,7 @@ export type GameType = 'MTT' | 'Cash' | 'Spin&Go' | 'SNG' | 'Outros'
 export type GrindSessionType = 'single' | 'mixed'
 export type EventType = 'live_class' | 'content_release' | 'tournament' | 'other'
 export type PreferredCurrency = 'usd' | 'brl'
+export type BankrollEntryType = 'initial' | 'deposit' | 'withdrawal' | 'rakeback' | 'adjustment'
 
 export type Database = {
   public: {
@@ -407,6 +408,7 @@ export type Database = {
           position: number | null
           is_live: boolean | null
           grind_session_id: string | null
+          itm: boolean | null
           created_at: string
           updated_at: string
         }
@@ -426,6 +428,7 @@ export type Database = {
           position?: number | null
           is_live?: boolean | null
           grind_session_id?: string | null
+          itm?: boolean | null
         }
         Update: Partial<Database['public']['Tables']['poker_sessions']['Insert']>
         Relationships: [
@@ -615,6 +618,84 @@ export type Database = {
           { foreignKeyName: 'ut_trophy_id_fkey'; columns: ['trophy_id']; referencedRelation: 'trophies'; referencedColumns: ['id'] }
         ]
       }
+      bankroll_entries: {
+        Row: {
+          id: string
+          user_id: string
+          platform_id: string | null
+          type: BankrollEntryType
+          amount_cents: number
+          date: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          type: BankrollEntryType
+          amount_cents: number
+          platform_id?: string | null
+          date?: string
+          notes?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['bankroll_entries']['Insert']>
+        Relationships: []
+      }
+      day_closes: {
+        Row: {
+          id: string
+          user_id: string
+          date: string
+          opening_bankroll_cents: number
+          closing_bankroll_cents: number
+          session_profit_cents: number
+          rakeback_cents: number
+          adjustment_cents: number
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          date: string
+          opening_bankroll_cents: number
+          closing_bankroll_cents: number
+          session_profit_cents?: number
+          rakeback_cents?: number
+          adjustment_cents?: number
+          notes?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['day_closes']['Insert']>
+        Relationships: []
+      }
+      tags: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          color: string
+          created_by: string
+          created_at: string
+        }
+        Insert: {
+          name: string
+          slug: string
+          color?: string
+          created_by: string
+        }
+        Update: Partial<Database['public']['Tables']['tags']['Insert']>
+        Relationships: []
+      }
+      course_tags: {
+        Row: { course_id: string; tag_id: string }
+        Insert: { course_id: string; tag_id: string }
+        Update: never
+        Relationships: []
+      }
+      lesson_tags: {
+        Row: { lesson_id: string; tag_id: string }
+        Insert: { lesson_id: string; tag_id: string }
+        Update: never
+        Relationships: []
+      }
     }
     Views: {
       poker_session_results: {
@@ -636,6 +717,7 @@ export type Database = {
           position: number | null
           is_live: boolean | null
           grind_session_id: string | null
+          itm: boolean | null
           profit_cents: number
           roi_percent: number
           created_at: string
