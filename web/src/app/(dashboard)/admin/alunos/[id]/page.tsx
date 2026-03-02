@@ -30,7 +30,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
       .eq('user_id', id)
       .order('played_at', { ascending: true }),
     admin.from('lesson_progress')
-      .select('user_id, completed, lessons(title, courses(title))')
+      .select('user_id, completed, lessons(title)')
       .eq('user_id', id),
     admin.from('player_group_members')
       .select('player_groups(id, name, color)')
