@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
 
       // Add to group if specified
       if (group_id) {
-        await admin.from('player_group_members').insert({ group_id, user_id: invited.user.id }).onConflict('group_id, user_id')
+        await admin.from('player_group_members').upsert({ group_id, user_id: invited.user.id }, { onConflict: 'group_id,user_id' })
       }
 
       results.push({ email, ok: true })
