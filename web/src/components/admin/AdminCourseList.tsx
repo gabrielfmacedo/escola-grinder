@@ -109,7 +109,7 @@ export default function AdminCourseList({ initialCourses }: Props) {
     await fetch('/api/admin/lessons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ module_id: moduleId, title, content_url, type: 'video' }),
+      body: JSON.stringify({ module_id: moduleId, title, content_url, type: 'video_youtube' }),
     })
     await reload()
     setLoading(false)
@@ -259,7 +259,7 @@ export default function AdminCourseList({ initialCourses }: Props) {
                       <div className="pb-1">
                         {mod.lessons.map(lesson => (
                           <div key={lesson.id} className="flex items-center gap-2 px-8 py-1.5 hover:bg-white/[0.02] group">
-                            {lesson.type === 'video'
+                            {lesson.type.startsWith('video')
                               ? <Video size={11} className="text-[var(--cyan)] shrink-0" />
                               : <FileText size={11} className="text-[var(--gold)] shrink-0" />
                             }

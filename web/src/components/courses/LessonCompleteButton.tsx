@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 export default function LessonCompleteButton({ lessonId }: { lessonId: string }) {
   const [loading, setLoading] = useState(false)
@@ -11,18 +10,11 @@ export default function LessonCompleteButton({ lessonId }: { lessonId: string })
 
   async function markComplete() {
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    await supabase.from('lesson_progress').upsert({
-      user_id: user.id,
-      lesson_id: lessonId,
-      completed: true,
-      progress_percent: 100,
-      last_watched_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,lesson_id' })
-
+    await fetch('/api/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lesson_id: lessonId }),
+    })
     router.refresh()
     setLoading(false)
   }

@@ -1,17 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
-export default function MarkReadButton({ userId }: { userId: string }) {
+export default function MarkReadButton({ userId: _userId }: { userId: string }) {
   const router = useRouter()
 
   async function markAll() {
-    const supabase = createClient()
-    await supabase.from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', userId)
-      .eq('is_read', false)
+    await fetch('/api/notifications/read', { method: 'POST' })
     router.refresh()
   }
 

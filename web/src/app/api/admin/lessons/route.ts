@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const order_index = (last?.order_index ?? 0) + 1
 
   const { data, error } = await admin.from('lessons').insert({
-    module_id, title, type: type ?? 'video',
+    module_id, title, type: type ?? 'video_youtube',
     content_url: content_url ?? null,
     content_text: content_text ?? null,
     duration_minutes: duration_minutes ?? null,

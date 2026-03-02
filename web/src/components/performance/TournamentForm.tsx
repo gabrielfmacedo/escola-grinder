@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { GameType } from '@/lib/supabase/types'
 import { Monitor, MapPin } from 'lucide-react'
@@ -82,28 +81,35 @@ export default function TournamentForm({
     const entries = parseInt(form.entries) || 1
 
     if (isNaN(buyIn) || buyIn < 0) { setError('Buy-in inválido.'); return }
+    if (!form.platform_id) { setError('Selecione uma plataforma.'); return }
 
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
 
-    const { error: dbError } = await supabase.from('poker_sessions').insert({
-      user_id: user!.id,
-      platform_id: form.platform_id,
-      played_at: form.played_at,
-      game_type: form.game_type,
-      tournament_name: form.tournament_name || null,
-      is_live: form.is_live,
-      buy_in_cents: buyIn * entries,
-      cash_out_cents: prize,
-      entries,
-      position: form.position ? parseInt(form.position) : null,
-      notes: form.notes || null,
-      grind_session_id: grindSessionId ?? null,
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform_id: form.platform_id,
+        played_at: form.played_at,
+        game_type: form.game_type,
+        tournament_name: form.tournament_name || null,
+        is_live: form.is_live,
+        buy_in_cents: buyIn * entries,
+        cash_out_cents: prize,
+        entries,
+        position: form.position ? parseInt(form.position) : null,
+        notes: form.notes || null,
+        grind_session_id: grindSessionId ?? null,
+      }),
     })
 
     setLoading(false)
-    if (dbError) { setError(dbError.message); return }
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? `Erro ao salvar (${res.status})`)
+      return
+    }
 
     if (onSuccess) {
       onSuccess()

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { GameType } from '@/lib/supabase/types'
 
@@ -38,35 +37,40 @@ export default function GrindSingleForm({
     e.preventDefault()
     setError(null)
 
+    if (!platformId) {
+      setError('Plataforma não identificada. Encerre e inicie uma nova sessão.')
+      return
+    }
+
     const entriesInt = parseInt(entries) || 1
     const prizeCents = prize ? Math.round(parseFloat(prize) * 100) : 0
 
     setLoading(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
 
-    if (!platformId) {
-      setError('Plataforma não identificada.')
-      setLoading(false)
-      return
-    }
-
-    const { error: dbError } = await supabase.from('poker_sessions').insert({
-      user_id: user!.id,
-      platform_id: platformId as string,
-      played_at: new Date().toISOString().split('T')[0],
-      game_type: gameType,
-      tournament_name: tournamentName,
-      is_live: false,
-      buy_in_cents: baseBuyIn * entriesInt,
-      cash_out_cents: prizeCents,
-      entries: entriesInt,
-      position: position ? parseInt(position) : null,
-      grind_session_id: grindSessionId,
+    const res = await fetch('/api/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform_id: platformId,
+        played_at: new Date().toISOString().split('T')[0],
+        game_type: gameType,
+        tournament_name: tournamentName,
+        is_live: false,
+        buy_in_cents: baseBuyIn * entriesInt,
+        cash_out_cents: prizeCents,
+        entries: entriesInt,
+        position: position ? parseInt(position) : null,
+        grind_session_id: grindSessionId,
+      }),
     })
 
     setLoading(false)
-    if (dbError) { setError(dbError.message); return }
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? `Erro ao registrar (${res.status})`)
+      return
+    }
 
     setEntries('1')
     setPrize('')
@@ -143,7 +147,11 @@ export default function GrindSingleForm({
         <span>{profit >= 0 ? '+' : ''}${profit.toFixed(2)}</span>
       </div>
 
-      {error && <p className="text-sm text-[var(--red)]">{error}</p>}
+      {error && (
+        <div className="rounded-xl border border-[var(--red)]/40 bg-[var(--red)]/8 px-3 py-2.5">
+          <p className="text-sm font-medium text-[var(--red)]">{error}</p>
+        </div>
+      )}
 
       <button
         type="submit"

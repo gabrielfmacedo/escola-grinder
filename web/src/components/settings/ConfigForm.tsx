@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Database } from '@/lib/supabase/types'
 
@@ -13,17 +12,22 @@ export default function ConfigForm({ profile }: { profile: Profile }) {
   const [form, setForm] = useState({ full_name: profile.full_name, phone: profile.phone ?? '', bio: profile.bio ?? '' })
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    const supabase = createClient()
-    await supabase.from('profiles').update({
-      full_name: form.full_name,
-      phone: form.phone || null,
-      bio: form.bio || null,
-    }).eq('id', profile.id)
+    setLoading(true); setError('')
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: form.full_name, phone: form.phone, bio: form.bio }),
+    })
     setLoading(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? 'Erro ao salvar')
+      return
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
     router.refresh()
@@ -56,6 +60,7 @@ export default function ConfigForm({ profile }: { profile: Profile }) {
         <textarea value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
           placeholder="Conte um pouco sobre você..." rows={3} className={cn(inputCls, 'resize-none')} />
       </div>
+      {error && <p className="text-sm text-[var(--red)]">{error}</p>}
       <button type="submit" disabled={loading}
         className="w-full py-2.5 rounded-xl bg-[var(--gold)] hover:bg-[var(--gold-light)] text-black font-bold text-sm transition-colors disabled:opacity-50">
         {saved ? '✓ Salvo!' : loading ? 'Salvando...' : 'Salvar alterações'}
