@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import type { GameType } from '@/lib/supabase/types'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
       user_id: user.id,
       platform_id: platform_id as string,
       played_at: (played_at as string) ?? new Date().toISOString().split('T')[0],
-      game_type: (game_type as string) ?? null,
+      game_type: (game_type as GameType) ?? null,
       tournament_name: (tournament_name as string) ?? null,
       is_live: (is_live as boolean) ?? false,
       buy_in_cents: buy_in_cents as number,

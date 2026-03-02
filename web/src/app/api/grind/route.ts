@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import type { GameType, GrindSessionType } from '@/lib/supabase/types'
 
 // POST — criar nova grind session
 export async function POST(req: NextRequest) {
@@ -21,9 +22,9 @@ export async function POST(req: NextRequest) {
     .from('grind_sessions')
     .insert({
       user_id: user.id,
-      type,
-      platform_id: platform_id ?? null,
-      game_type: game_type ?? null,
+      type: type as GrindSessionType,
+      platform_id: (platform_id as string) ?? null,
+      game_type: (game_type as GameType) ?? null,
       buy_in_cents: buy_in_cents ?? null,
       tournament_name: tournament_name ?? null,
       is_active: true,

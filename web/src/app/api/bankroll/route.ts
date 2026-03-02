@@ -82,11 +82,11 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase.from('bankroll_entries').insert({
     user_id: user.id,
-    type,
+    type: type as BankrollEntryType,
     amount_cents,
-    platform_id: platform_id || null,
-    date: date ?? new Date().toISOString().split('T')[0],
-    notes: notes || null,
+    platform_id: (platform_id as string) || null,
+    date: (date as string) ?? new Date().toISOString().split('T')[0],
+    notes: (notes as string) || null,
   }).select('id').single()
 
   if (error) { console.error('[POST /api/bankroll]', error); return NextResponse.json({ error: error.message }, { status: 500 }) }
