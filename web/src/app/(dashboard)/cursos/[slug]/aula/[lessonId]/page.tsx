@@ -65,6 +65,20 @@ export default async function LessonPage({
 
   const isCompleted = progressRow?.completed ?? false
 
+  // Marcar como "iniciada" se ainda não tem registro (para CONTINUE ASSISTINDO no dashboard)
+  if (!isCompleted) {
+    await supabase.from('lesson_progress').upsert(
+      {
+        user_id: user!.id,
+        lesson_id: lessonId,
+        progress_percent: 10,
+        last_watched_at: new Date().toISOString(),
+        completed: false,
+      },
+      { onConflict: 'user_id,lesson_id', ignoreDuplicates: true }
+    )
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-5">
       {/* Breadcrumb */}

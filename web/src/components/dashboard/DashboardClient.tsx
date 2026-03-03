@@ -2,73 +2,71 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { TrendingUp, TrendingDown, Target, Layers, ChevronRight, DollarSign, Zap, CalendarDays, BookOpen, X } from 'lucide-react'
+import { PlayCircle, BookOpen, ChevronRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MiniPnLChart from '@/components/banca/MiniPnLChart'
 import type { Database } from '@/lib/supabase/types'
+import type { PeakPoint } from '@/components/banca/MiniPnLChart'
 
 type Session = Database['public']['Views']['poker_session_results']['Row']
-type Course = { id: string; title: string; slug: string; required_plan: string }
-type UpcomingEvent = { id: string; title: string; starts_at: string; type: string }
-type RecentLesson = { id: string; title: string; courseTitle: string; courseSlug: string }
 
-const PERIODS = [
-  { label: '28 dias', days: 28 },
-  { label: '3 meses', days: 90 },
-  { label: '1 ano',   days: 365 },
-  { label: 'Tudo',    days: 0 },
-]
-
-const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
-type Tab = 'geral' | 'online' | 'live'
-
-function centsToDisplay(cents: number, currency: 'usd' | 'brl'): string {
-  const val = Math.abs(cents) / 100
-  const converted = currency === 'brl' ? val * 5 : val
-  const sign = cents < 0 ? '-' : cents > 0 ? '+' : ''
-  const prefix = currency === 'brl' ? 'R$' : '$'
-  return sign + prefix + converted.toFixed(2)
+interface ContinueLesson {
+  lessonId: string
+  lessonTitle: string
+  courseTitle: string
+  courseSlug: string
 }
 
+interface NewLesson {
+  id: string
+  title: string
+  courseTitle: string
+  courseSlug: string
+}
 
-const BUY_IN_RANGES = [
-  { label: '≤$5',    min: 0,    max: 500  },
-  { label: '$5-$10', min: 501,  max: 1000 },
-  { label: '$10-$20',min: 1001, max: 2000 },
-  { label: '$20-$50',min: 2001, max: 5000 },
-  { label: '>$50',   min: 5001, max: Infinity },
+type ModalKey =
+  | 'saldo' | 'roi' | 'buyin' | 'lucro'
+  | 'premio' | 'volume' | 'pertorneio' | 'itm'
+  | 'dias' | 'buyin_medio'
+
+const PERIODS = [
+  { key: '7d',   label: '7D',   days: 7   },
+  { key: '30d',  label: '30D',  days: 30  },
+  { key: '90d',  label: '90D',  days: 90  },
+  { key: '365d', label: '365D', days: 365 },
+  { key: 'all',  label: 'TUDO', days: 0   },
 ]
 
-const EVENT_TYPE_COLOR: Record<string, string> = {
-  live_class:      'var(--cyan)',
-  content_release: 'var(--green)',
-  tournament:      'var(--gold)',
-  other:           'var(--text-dim)',
+function fmt(cents: number, currency: 'usd' | 'brl'): string {
+  const val = Math.abs(cents) / 100
+  const converted = currency === 'brl' ? val * 5 : val
+  const prefix = currency === 'brl' ? 'R$' : '$'
+  return prefix + converted.toFixed(2)
 }
 
 export default function DashboardClient({
   allSessions,
-  courses,
-  upcomingEvents = [],
-  recentLessons = [],
+  platformBalances,
+  platforms,
+  continueWatching,
+  newLessons,
 }: {
   allSessions: Session[]
-  courses: Course[]
-  upcomingEvents?: UpcomingEvent[]
-  recentLessons?: RecentLesson[]
+  platformBalances: Record<string, number>
+  platforms: { id: string; name: string }[]
+  continueWatching: ContinueLesson[]
+  newLessons: NewLesson[]
 }) {
-  const [period, setPeriod] = useState(0) // index into PERIODS
-  const [tab, setTab] = useState<Tab>('geral')
+  const [period, setPeriod] = useState('30d')
+  const [tab, setTab] = useState<'geral' | 'online' | 'live'>('geral')
   const [currency, setCurrency] = useState<'usd' | 'brl'>('usd')
-  const [breakdownTab, setBreakdownTab] = useState<'game' | 'day' | 'platform' | 'buyin'>('game')
-  const [breakdownModal, setBreakdownModal] = useState<'lucro' | 'roi' | null>(null)
+  const [modal, setModal] = useState<ModalKey | null>(null)
 
   const hasLive = allSessions.some(s => s.is_live)
 
   const filtered = useMemo(() => {
-    const days = PERIODS[period].days
-    const cutoff = days > 0 ? new Date(Date.now() - days * 86400_000) : null
+    const p = PERIODS.find(p => p.key === period)!
+    const cutoff = p.days > 0 ? new Date(Date.now() - p.days * 86400_000) : null
     return allSessions.filter(s => {
       if (cutoff && new Date(s.played_at) < cutoff) return false
       if (tab === 'online' && s.is_live) return false
@@ -77,110 +75,165 @@ export default function DashboardClient({
     })
   }, [allSessions, period, tab])
 
-  const totalProfit = filtered.reduce((s, t) => s + t.profit_cents, 0)
-  const totalInvested = filtered.reduce((s, t) => s + t.buy_in_cents, 0)
-  const totalSessions = filtered.length
-  const roi = totalInvested > 0 ? ((totalProfit / totalInvested) * 100) : 0
-  const profitPerSession = totalSessions > 0 ? totalProfit / totalSessions : 0
-  const isProfitable = totalProfit >= 0
+  // ── Métricas ─────────────────────────────────────────────
+  const totalSessions  = filtered.length
+  const totalInvested  = filtered.reduce((s, t) => s + t.buy_in_cents, 0)
+  const totalProfit    = filtered.reduce((s, t) => s + t.profit_cents, 0)
+  const totalPrize     = filtered.reduce((s, t) => s + t.cash_out_cents, 0)
+  const roi            = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0
+  const profitPerSess  = totalSessions > 0 ? totalProfit / totalSessions : 0
+  const itmCount       = filtered.filter(s => s.itm).length
+  const itmPct         = totalSessions > 0 ? (itmCount / totalSessions) * 100 : 0
+  const uniqueDays     = useMemo(() => new Set(filtered.map(s => s.played_at.slice(0, 10))).size, [filtered])
+  const avgBuyIn       = totalSessions > 0 ? totalInvested / totalSessions : 0
+  const totalSaldo     = Object.values(platformBalances).reduce((a, b) => a + b, 0)
+  const isProfitable   = totalProfit >= 0
 
-  const uniqueDays = useMemo(() => new Set(filtered.map(s => s.played_at.slice(0, 10))).size, [filtered])
-  const avgBuyIn = totalSessions > 0 ? totalInvested / totalSessions : 0
-  const itmCount = filtered.filter(s => s.itm).length
-  const itmPct = totalSessions > 0 ? (itmCount / totalSessions) * 100 : 0
-
-  // Cumulative chart
-  const chartData = useMemo(() => {
-    let cum = 0
-    return [...filtered]
-      .sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime())
-      .map(s => { cum += s.profit_cents; return { value: cum } })
-  }, [filtered])
-
-  // Chart milestones (every $100 that the cumulative profit crosses)
-  const chartMilestones = useMemo(() => {
-    if (chartData.length < 2) return []
-    const values = chartData.map(d => d.value)
-    const min = Math.min(...values)
-    const max = Math.max(...values)
-    const step = 10000 // $100 in cents
-    const milestones: number[] = []
-    for (let m = Math.ceil(min / step) * step; m <= max; m += step) {
-      if (m !== 0) milestones.push(m)
-    }
-    return milestones.slice(0, 5) // max 5 lines
-  }, [chartData])
-
-  // Breakdowns
-  const byGameType = useMemo(() => {
-    const map: Record<string, { sessions: number; profit: number; invested: number }> = {}
-    for (const s of filtered) {
-      const k = s.game_type ?? 'Outros'
-      if (!map[k]) map[k] = { sessions: 0, profit: 0, invested: 0 }
-      map[k].sessions++
-      map[k].profit += s.profit_cents
-      map[k].invested += s.buy_in_cents
-    }
-    return Object.entries(map).sort((a, b) => b[1].sessions - a[1].sessions)
-  }, [filtered])
-
-  const byDay = useMemo(() => {
-    const map: Record<number, { sessions: number; profit: number }> = {}
-    for (const s of filtered) {
-      const d = new Date(s.played_at).getDay()
-      if (!map[d]) map[d] = { sessions: 0, profit: 0 }
-      map[d].sessions++
-      map[d].profit += s.profit_cents
-    }
-    return Object.entries(map)
-      .map(([d, v]) => ({ day: DAY_NAMES[+d], ...v }))
-      .sort((a, b) => b.sessions - a.sessions)
-  }, [filtered])
-
+  // ── Breakdown por plataforma ─────────────────────────────
   const byPlatform = useMemo(() => {
-    const map: Record<string, { sessions: number; profit: number; invested: number }> = {}
+    const map: Record<string, {
+      name: string; sessions: number; profit: number
+      invested: number; cashout: number; itmCount: number; days: Set<string>
+    }> = {}
     for (const s of filtered) {
-      const k = s.platform_name ?? 'Outros'
-      if (!map[k]) map[k] = { sessions: 0, profit: 0, invested: 0 }
-      map[k].sessions++
-      map[k].profit += s.profit_cents
-      map[k].invested += s.buy_in_cents
+      const pid = s.platform_id
+      if (!map[pid]) map[pid] = { name: s.platform_name, sessions: 0, profit: 0, invested: 0, cashout: 0, itmCount: 0, days: new Set() }
+      map[pid].sessions++
+      map[pid].profit   += s.profit_cents
+      map[pid].invested += s.buy_in_cents
+      map[pid].cashout  += s.cash_out_cents
+      if (s.itm) map[pid].itmCount++
+      map[pid].days.add(s.played_at.slice(0, 10))
     }
-    return Object.entries(map).sort((a, b) => b[1].sessions - a[1].sessions)
+    return Object.values(map).sort((a, b) => b.sessions - a.sessions)
   }, [filtered])
 
-  const byBuyin = useMemo(() => {
-    return BUY_IN_RANGES
-      .map(range => {
-        const sessions = filtered.filter(s => s.buy_in_cents >= range.min && s.buy_in_cents <= range.max)
-        if (!sessions.length) return null
-        const profit = sessions.reduce((s, t) => s + t.profit_cents, 0)
-        return { label: range.label, sessions: sessions.length, profit }
-      })
-      .filter(Boolean) as { label: string; sessions: number; profit: number }[]
-  }, [filtered])
-
-  const recentSessions = useMemo(() =>
-    [...filtered]
-      .sort((a, b) => new Date(b.played_at).getTime() - new Date(a.played_at).getTime())
-      .slice(0, 5),
+  // ── Gráfico e peaks ──────────────────────────────────────
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => a.played_at.localeCompare(b.played_at)),
     [filtered]
   )
 
+  const chartData = useMemo(() => {
+    let cum = 0
+    return sorted.map((s, i) => { cum += s.profit_cents; return { value: cum, index: i } })
+  }, [sorted])
+
+  const peaks = useMemo<PeakPoint[]>(() => {
+    return [...filtered]
+      .filter(s => s.cash_out_cents > 0)
+      .sort((a, b) => b.cash_out_cents - a.cash_out_cents)
+      .slice(0, 5)
+      .map(s => {
+        const idx = sorted.findIndex(r => r.id === s.id)
+        return {
+          index: idx,
+          tournament_name: s.tournament_name ?? s.game_type ?? 'Torneio',
+          prize_cents: s.cash_out_cents,
+          date: s.played_at,
+          platform_name: s.platform_name,
+        }
+      })
+      .filter(p => p.index >= 0)
+  }, [filtered, sorted])
+
+  // ── Configuração dos modais ──────────────────────────────
+  type ModalRow = { label: string; value: string; sub?: string; color?: string }
+  const buildModalRows = (key: ModalKey): { title: string; rows: ModalRow[] } => {
+    const bpList = byPlatform
+
+    switch (key) {
+      case 'saldo':
+        return {
+          title: 'Saldo por Sala',
+          rows: platforms.length > 0
+            ? platforms.map(p => {
+                const bal = platformBalances[p.id] ?? 0
+                return { label: p.name, value: fmt(Math.abs(bal), currency), color: bal >= 0 ? 'var(--green)' : 'var(--red)', sub: bal >= 0 ? 'positivo' : 'negativo' }
+              })
+            : [],
+        }
+      case 'roi':
+        return {
+          title: 'ROI por Sala',
+          rows: bpList.map(p => {
+            const r = p.invested > 0 ? (p.profit / p.invested) * 100 : 0
+            return { label: p.name, value: (r >= 0 ? '+' : '') + r.toFixed(1) + '%', color: r >= 0 ? 'var(--green)' : 'var(--red)', sub: `${p.sessions} torneios` }
+          }),
+        }
+      case 'buyin':
+        return {
+          title: 'Buy-in Total por Sala',
+          rows: bpList.map(p => ({ label: p.name, value: fmt(p.invested, currency), sub: `${p.sessions} torneios` })),
+        }
+      case 'lucro':
+        return {
+          title: 'Lucro por Sala',
+          rows: bpList.map(p => ({
+            label: p.name,
+            value: (p.profit >= 0 ? '+' : '-') + fmt(Math.abs(p.profit), currency),
+            color: p.profit >= 0 ? 'var(--green)' : 'var(--red)',
+            sub: `${p.sessions} torneios`,
+          })),
+        }
+      case 'premio':
+        return {
+          title: 'Prêmio Total por Sala',
+          rows: bpList.map(p => ({ label: p.name, value: fmt(p.cashout, currency), sub: `${p.sessions} torneios` })),
+        }
+      case 'volume':
+        return {
+          title: 'Volume por Sala',
+          rows: bpList.map(p => ({ label: p.name, value: `${p.sessions} torneios`, sub: `${p.days.size} dias jogados` })),
+        }
+      case 'pertorneio': {
+        return {
+          title: '$ por Torneio por Sala',
+          rows: bpList.map(p => {
+            const ppt = p.sessions > 0 ? p.profit / p.sessions : 0
+            return { label: p.name, value: (ppt >= 0 ? '+' : '-') + fmt(Math.abs(ppt), currency), color: ppt >= 0 ? 'var(--green)' : 'var(--red)' }
+          }),
+        }
+      }
+      case 'itm':
+        return {
+          title: '% ITM por Sala',
+          rows: bpList.map(p => {
+            const pct = p.sessions > 0 ? (p.itmCount / p.sessions) * 100 : 0
+            return { label: p.name, value: pct.toFixed(1) + '%', sub: `${p.itmCount}/${p.sessions} torneios` }
+          }),
+        }
+      case 'dias':
+        return {
+          title: 'Dias Jogados por Sala',
+          rows: bpList.map(p => ({ label: p.name, value: `${p.days.size} dias`, sub: `${p.sessions} torneios` })),
+        }
+      case 'buyin_medio':
+        return {
+          title: 'Buy-in Médio por Sala',
+          rows: bpList.map(p => {
+            const avg = p.sessions > 0 ? p.invested / p.sessions : 0
+            return { label: p.name, value: fmt(avg, currency), sub: `${p.sessions} torneios` }
+          }),
+        }
+    }
+  }
+
+  const activeModal = modal ? buildModalRows(modal) : null
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
 
-      {/* ── Controls: period + tabs + currency ─────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-
-        {/* Context tabs */}
-        <div className="flex gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-1">
-          {(['geral', 'online', 'live'] as Tab[]).map(t => (
+      {/* ── Filter bar ─────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-2.5">
+        {/* Env tabs */}
+        <div className="flex gap-1 bg-[var(--surface-2)] rounded-xl p-1">
+          {(['geral', 'online', 'live'] as const).map(t => (
             <button key={t}
               disabled={t === 'live' && !hasLive}
               onClick={() => setTab(t)}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all',
+                'px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wide transition-all',
                 tab === t
                   ? 'bg-[var(--surface-1)] text-white shadow-sm'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-dim)] disabled:opacity-30 disabled:cursor-not-allowed'
@@ -191,15 +244,15 @@ export default function DashboardClient({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Period selector */}
-          <div className="flex gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-1">
-            {PERIODS.map((p, i) => (
-              <button key={p.label}
-                onClick={() => setPeriod(i)}
+        <div className="flex-1 flex items-center gap-2 flex-wrap">
+          {/* Period */}
+          <div className="flex gap-1 bg-[var(--surface-2)] rounded-xl p-1">
+            {PERIODS.map(p => (
+              <button key={p.key}
+                onClick={() => setPeriod(p.key)}
                 className={cn(
                   'px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all',
-                  period === i
+                  period === p.key
                     ? 'bg-[var(--surface-1)] text-white'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-dim)]'
                 )}
@@ -209,8 +262,8 @@ export default function DashboardClient({
             ))}
           </div>
 
-          {/* Currency toggle */}
-          <div className="flex gap-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-1">
+          {/* Currency */}
+          <div className="flex gap-1 bg-[var(--surface-2)] rounded-xl p-1 ml-auto">
             {(['usd', 'brl'] as const).map(c => (
               <button key={c}
                 onClick={() => setCurrency(c)}
@@ -221,325 +274,214 @@ export default function DashboardClient({
                     : 'text-[var(--text-muted)] hover:text-[var(--text-dim)]'
                 )}
               >
-                {c.toUpperCase()}
+                {c === 'usd' ? '$ USD' : 'R$ BRL'}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── Stat cards ─────────────────────────────────────────── */}
+      {/* ── Row 1: SALDO TOTAL | ROI | BUY-IN TOTAL | LUCRO TOTAL ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard
-          label="Lucro Total"
-          value={centsToDisplay(totalProfit, currency)}
-          positive={isProfitable}
-          accent={isProfitable ? 'var(--green)' : 'var(--red)'}
-          icon={isProfitable ? TrendingUp : TrendingDown}
-          sub={`${totalSessions} torneios`}
-          onClick={() => setBreakdownModal('lucro')}
+        <MetricCard
+          label="SALDO TOTAL"
+          value={fmt(Math.abs(totalSaldo), currency)}
+          color={totalSaldo >= 0 ? 'var(--green)' : 'var(--red)'}
+          sub="banca atual"
+          note="* não afetado pelo período"
+          onClick={() => setModal('saldo')}
         />
-        <StatCard
+        <MetricCard
           label="ROI"
           value={(roi >= 0 ? '+' : '') + roi.toFixed(1) + '%'}
-          positive={roi >= 0}
-          accent={roi >= 0 ? 'var(--cyan)' : 'var(--red)'}
-          icon={Target}
-          sub="retorno sobre investido"
-          onClick={() => setBreakdownModal('roi')}
+          color={roi >= 0 ? 'var(--cyan)' : 'var(--red)'}
+          sub="retorno s/ investido"
+          onClick={() => setModal('roi')}
         />
-        <StatCard
-          label="Torneios"
-          value={String(totalSessions)}
-          accent="var(--gold)"
-          icon={Layers}
-          sub={PERIODS[period].days > 0 ? `últimos ${PERIODS[period].label}` : 'total'}
+        <MetricCard
+          label="BUY-IN TOTAL"
+          value={fmt(totalInvested, currency)}
+          color="var(--text-dim)"
+          sub={`${totalSessions} torneios`}
+          onClick={() => setModal('buyin')}
         />
-        <StatCard
-          label="Por torneio"
-          value={totalSessions > 0 ? centsToDisplay(profitPerSession, currency) : '—'}
-          positive={profitPerSession >= 0}
-          accent={profitPerSession >= 0 ? 'var(--green)' : 'var(--red)'}
-          icon={DollarSign}
-          sub="lucro médio"
+        <MetricCard
+          label="LUCRO TOTAL"
+          value={(totalProfit >= 0 ? '+' : '-') + fmt(Math.abs(totalProfit), currency)}
+          color={totalProfit >= 0 ? 'var(--green)' : 'var(--red)'}
+          sub="lucro líquido"
+          onClick={() => setModal('lucro')}
         />
       </div>
 
-      {/* ── Mini metric strip ──────────────────────────────────── */}
-      {totalSessions > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">Dias Jogados</p>
-            <p className="text-base font-black text-white">{uniqueDays}</p>
+      {/* ── Row 2: PRÊMIO TOTAL | VOLUME | $/TORNEIO | % ITM ──────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard
+          label="PRÊMIO TOTAL"
+          value={fmt(totalPrize, currency)}
+          color="var(--gold)"
+          sub="total de cashouts"
+          onClick={() => setModal('premio')}
+        />
+        <MetricCard
+          label="VOLUME"
+          value={String(totalSessions)}
+          color="var(--text-dim)"
+          sub="torneios jogados"
+          onClick={() => setModal('volume')}
+        />
+        <MetricCard
+          label="$ / TORNEIO"
+          value={totalSessions > 0
+            ? (profitPerSess >= 0 ? '+' : '-') + fmt(Math.abs(profitPerSess), currency)
+            : '—'}
+          color={profitPerSess >= 0 ? 'var(--green)' : 'var(--red)'}
+          sub="lucro médio"
+          onClick={() => setModal('pertorneio')}
+        />
+        <MetricCard
+          label="% ITM"
+          value={totalSessions > 0 ? itmPct.toFixed(1) + '%' : '—'}
+          color="var(--gold)"
+          sub={`${itmCount} no dinheiro`}
+          onClick={() => setModal('itm')}
+        />
+      </div>
+
+      {/* ── Gráfico 60% + métricas 40% ─────────────────────────── */}
+      {chartData.length > 1 && (
+        <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-bold text-white">Evolução da Banca</p>
+            <Link href="/performance" className="text-xs text-[var(--cyan)] hover:underline font-medium">
+              Ver performance →
+            </Link>
           </div>
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">Buy-in Médio</p>
-            <p className="text-base font-black text-white">{centsToDisplay(avgBuyIn, currency)}</p>
-          </div>
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
-            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">% ITM</p>
-            <p className="text-base font-black text-[var(--gold)]">{itmPct.toFixed(0)}%</p>
+          <div className="grid gap-4" style={{ gridTemplateColumns: '60% 1fr' }}>
+            {/* Chart */}
+            <MiniPnLChart data={chartData} positive={isProfitable} peaks={peaks} height={160} />
+
+            {/* Right metrics */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => setModal('dias')}
+                className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-4 py-4 text-left hover:border-[var(--border-hi)] transition-colors group"
+              >
+                <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-[0.18em] font-bold mb-2">Dias Jogados</p>
+                <p className="text-2xl font-black text-white">{uniqueDays}</p>
+                <p className="text-[10px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1">por sala →</p>
+              </button>
+              <button
+                onClick={() => setModal('buyin_medio')}
+                className="flex-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-4 py-4 text-left hover:border-[var(--border-hi)] transition-colors group"
+              >
+                <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-[0.18em] font-bold mb-2">Buy-in Médio</p>
+                <p className="text-2xl font-black text-white">{fmt(avgBuyIn, currency)}</p>
+                <p className="text-[10px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1">por sala →</p>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ── Corpo ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Coluna esquerda: chart + últimas sessões */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
-
-          {chartData.length > 1 && (
-            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold text-white">Evolução do resultado</p>
-                <Link href="/performance" className="text-xs text-[var(--cyan)] hover:underline font-medium">
-                  Ver performance →
-                </Link>
-              </div>
-              <MiniPnLChart data={chartData} positive={isProfitable} milestones={chartMilestones} />
-            </div>
-          )}
-
-          {/* Últimos torneios */}
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-white">Últimos torneios</p>
-              <Link href="/performance" className="text-xs text-[var(--cyan)] hover:underline font-medium">
-                Ver todos →
+      {/* ── Continue Assistindo + Novas Aulas ─────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Continue Assistindo */}
+        <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-bold text-white flex items-center gap-2">
+              <PlayCircle size={14} className="text-[var(--cyan)]" /> Continue Assistindo
+            </p>
+            <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline font-medium">Ver todos →</Link>
+          </div>
+          {continueWatching.length === 0 ? (
+            <div className="text-center py-6">
+              <PlayCircle size={20} className="text-[var(--text-muted)] mx-auto mb-2" />
+              <p className="text-xs text-[var(--text-muted)]">Nenhuma aula em andamento.</p>
+              <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline mt-1 block">
+                Explorar conteúdo →
               </Link>
             </div>
-
-            {!recentSessions.length ? (
-              <div className="text-center py-8">
-                <TrendingUp size={20} className="text-[var(--text-muted)] mx-auto mb-3" />
-                <p className="text-sm text-[var(--text-muted)]">Nenhum torneio no período.</p>
-                <Link href="/performance/novo-torneio" className="text-xs text-[var(--cyan)] hover:underline mt-1 block">
-                  Registrar torneio →
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-0.5">
-                {recentSessions.map(s => (
-                  <div key={s.id}
-                    className="flex items-center justify-between py-2.5 border-b border-[var(--border)] last:border-0">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">
-                        {s.tournament_name ?? s.platform_name}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {[s.platform_name, s.game_type].filter(Boolean).join(' · ')} ·{' '}
-                        {new Date(s.played_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                        {s.is_live ? ' · Live' : ''}
-                      </p>
-                    </div>
-                    <span className={cn(
-                      'text-sm font-black tabular-nums shrink-0 ml-4',
-                      s.profit_cents >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
-                    )}>
-                      {centsToDisplay(s.profit_cents, currency)}
-                    </span>
+          ) : (
+            <div className="space-y-2">
+              {continueWatching.map(l => (
+                <Link key={l.lessonId} href={`/cursos/${l.courseSlug}/aula/${l.lessonId}`}
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--cyan)]/30 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-[var(--cyan)]/10 flex items-center justify-center shrink-0">
+                    <PlayCircle size={13} className="text-[var(--cyan)]" />
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Breakdowns */}
-          {filtered.length > 0 && (
-            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center gap-1 mb-4 flex-wrap">
-                {[
-                  { key: 'game',     label: 'Tipo de Jogo' },
-                  { key: 'day',      label: 'Dia da Semana' },
-                  { key: 'platform', label: 'Plataforma' },
-                  { key: 'buyin',    label: 'Buy-in' },
-                ].map(b => (
-                  <button key={b.key}
-                    onClick={() => setBreakdownTab(b.key as typeof breakdownTab)}
-                    className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
-                      breakdownTab === b.key
-                        ? 'bg-[var(--surface-3)] text-white'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-dim)]'
-                    )}
-                  >
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-
-              <BreakdownTable
-                rows={
-                  breakdownTab === 'game'     ? byGameType.map(([k, v]) => ({ label: k, ...v })) :
-                  breakdownTab === 'day'      ? byDay.map(d => ({ label: d.day, sessions: d.sessions, profit: d.profit })) :
-                  breakdownTab === 'platform' ? byPlatform.map(([k, v]) => ({ label: k, ...v })) :
-                  byBuyin.map(b => ({ label: b.label, sessions: b.sessions, profit: b.profit }))
-                }
-                currency={currency}
-              />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--cyan)] transition-colors">{l.lessonTitle}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate">{l.courseTitle}</p>
+                  </div>
+                  <ChevronRight size={12} className="text-[var(--text-muted)] shrink-0" />
+                </Link>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Coluna direita */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
-
-          {/* Próximos eventos */}
-          {upcomingEvents.length > 0 && (
-            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold text-white flex items-center gap-2">
-                  <CalendarDays size={14} className="text-[var(--gold)]" /> Próximos Eventos
-                </p>
-                <Link href="/calendario" className="text-xs text-[var(--cyan)] hover:underline font-medium">Ver todos →</Link>
-              </div>
-              <div className="space-y-2">
-                {upcomingEvents.map(evt => (
-                  <div key={evt.id} className="flex items-center gap-3 py-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: EVENT_TYPE_COLOR[evt.type] ?? 'var(--text-muted)' }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-white truncate">{evt.title}</p>
-                      <p className="text-[11px] text-[var(--text-muted)]">
-                        {new Date(evt.starts_at).toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                        {' às '}
-                        {new Date(evt.starts_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* Novas Aulas */}
+        <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-bold text-white flex items-center gap-2">
+              <BookOpen size={14} className="text-[var(--gold)]" /> Novas Aulas
+            </p>
+            <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline font-medium">Ver todas →</Link>
+          </div>
+          {newLessons.length === 0 ? (
+            <div className="text-center py-6">
+              <BookOpen size={20} className="text-[var(--text-muted)] mx-auto mb-2" />
+              <p className="text-xs text-[var(--text-muted)]">Nenhuma aula nova disponível.</p>
             </div>
-          )}
-
-          {/* Conteúdos */}
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-white flex items-center gap-2">
-                <Layers size={14} className="text-[var(--cyan)]" /> Conteúdos
-              </p>
-              <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline font-medium">
-                Ver todos →
-              </Link>
-            </div>
+          ) : (
             <div className="space-y-2">
-              {courses.map(c => (
-                <Link key={c.id} href={`/cursos/${c.slug}`}
-                  className="flex items-center justify-between p-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--cyan)]/30 hover:bg-[var(--surface-3)] transition-all group">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--cyan)] transition-colors">
-                      {c.title}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-muted)] capitalize mt-0.5">{c.required_plan}</p>
+              {newLessons.map(l => (
+                <Link key={l.id} href={`/cursos/${l.courseSlug}/aula/${l.id}`}
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--gold)]/30 transition-colors group">
+                  <div className="w-7 h-7 rounded-lg bg-[var(--gold)]/10 flex items-center justify-center shrink-0">
+                    <BookOpen size={13} className="text-[var(--gold)]" />
                   </div>
-                  <ChevronRight size={13} className="text-[var(--text-muted)] shrink-0 ml-2 group-hover:text-[var(--cyan)] transition-colors" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--gold)] transition-colors">{l.title}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate">{l.courseTitle}</p>
+                  </div>
+                  <ChevronRight size={12} className="text-[var(--text-muted)] shrink-0" />
                 </Link>
               ))}
-              {!courses.length && (
-                <p className="text-xs text-[var(--text-muted)] text-center py-4">Nenhum curso publicado.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Últimas Aulas Postadas */}
-          {recentLessons.length > 0 && (
-            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-bold text-white flex items-center gap-2">
-                  <BookOpen size={14} className="text-[var(--gold)]" /> Últimas Aulas
-                </p>
-                <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline font-medium">Ver todas →</Link>
-              </div>
-              <div className="space-y-2">
-                {recentLessons.map(l => (
-                  <Link key={l.id} href={`/cursos/${l.courseSlug}/aula/${l.id}`}
-                    className="block p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--gold)]/30 transition-colors group">
-                    <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--gold)] transition-colors">{l.title}</p>
-                    <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{l.courseTitle}</p>
-                  </Link>
-                ))}
-              </div>
             </div>
           )}
-
-          {/* Acesso rápido */}
-          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
-            <p className="text-sm font-bold text-white mb-3">Acesso rápido</p>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { href: '/performance/novo-torneio', label: 'Novo Torneio', accent: 'var(--cyan)' },
-                { href: '/grind',                    label: 'Modo Grind',   accent: 'var(--gold)' },
-                { href: '/performance',              label: 'Performance',  accent: 'var(--green)' },
-                { href: '/ranking',                  label: 'Ranking',      accent: 'var(--blue)' },
-              ].map(item => (
-                <Link key={item.href} href={item.href}
-                  className={cn(
-                    'flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all hover:-translate-y-0.5',
-                    item.href === '/grind' && 'col-span-2'
-                  )}
-                  style={{
-                    background: `color-mix(in srgb, ${item.accent} 10%, transparent)`,
-                    border: `1px solid color-mix(in srgb, ${item.accent} 20%, transparent)`,
-                    color: item.accent,
-                  }}
-                >
-                  {item.href === '/grind' && <Zap size={12} />}
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* ── StatsBreakdownModal ─────────────────────────────────── */}
-      {breakdownModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setBreakdownModal(null)}>
-          <div className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+      {/* ── Breakdown Modal ──────────────────────────────────────── */}
+      {activeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setModal(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-              <h3 className="font-bold text-white text-sm">
-                {breakdownModal === 'lucro' ? 'Lucro por Plataforma' : 'ROI por Tipo de Jogo'}
-              </h3>
-              <button onClick={() => setBreakdownModal(null)} className="text-[var(--text-dim)] hover:text-white transition-colors">
+              <h3 className="font-bold text-white text-sm">{activeModal.title}</h3>
+              <button onClick={() => setModal(null)} className="text-[var(--text-dim)] hover:text-white transition-colors">
                 <X size={16} />
               </button>
             </div>
-            <div className="p-5 space-y-2">
-              {breakdownModal === 'lucro'
-                ? byPlatform.map(([name, v]) => (
-                    <div key={name} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{v.sessions} torneios</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={cn('text-sm font-bold', v.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
-                          {centsToDisplay(v.profit, currency)}
-                        </p>
-                        <p className="text-xs text-[var(--text-muted)]">
-                          ROI {v.invested > 0 ? ((v.profit / v.invested) * 100).toFixed(1) : '0.0'}%
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                : byGameType.map(([name, v]) => (
-                    <div key={name} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-                      <div>
-                        <p className="text-sm font-semibold text-white">{name}</p>
-                        <p className="text-xs text-[var(--text-muted)]">{v.sessions} torneios</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={cn('text-sm font-bold', v.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
-                          {centsToDisplay(v.profit, currency)}
-                        </p>
-                        <p className="text-xs text-[var(--text-muted)]">
-                          ROI {v.invested > 0 ? ((v.profit / v.invested) * 100).toFixed(1) : '0.0'}%
-                        </p>
-                      </div>
-                    </div>
-                  ))
-              }
-              {!byPlatform.length && !byGameType.length && (
+            <div className="p-5 space-y-0.5 max-h-80 overflow-y-auto">
+              {activeModal.rows.length > 0 ? activeModal.rows.map(r => (
+                <div key={r.label} className="flex items-center justify-between py-2.5 border-b border-[var(--border)]/40 last:border-0">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{r.label}</p>
+                    {r.sub && <p className="text-[11px] text-[var(--text-muted)]">{r.sub}</p>}
+                  </div>
+                  <span className="text-sm font-bold" style={{ color: r.color ?? 'var(--foreground)' }}>
+                    {r.value}
+                  </span>
+                </div>
+              )) : (
                 <p className="text-sm text-[var(--text-muted)] text-center py-4">Sem dados no período.</p>
               )}
             </div>
@@ -550,66 +492,32 @@ export default function DashboardClient({
   )
 }
 
-function StatCard({ label, value, positive, accent, icon: Icon, sub, onClick }: {
-  label: string; value: string; positive?: boolean
-  accent: string; icon: React.ElementType; sub?: string; onClick?: () => void
-}) {
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        'relative overflow-hidden bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 group hover:border-opacity-50 transition-colors',
-        onClick && 'cursor-pointer'
-      )}
-    >
-      <div className="pointer-events-none absolute -top-4 -right-4 w-24 h-24 rounded-full blur-2xl opacity-15 transition-opacity group-hover:opacity-25"
-        style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }} />
-      <div className="absolute top-0 left-0 right-0 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-[0.14em] font-bold">{label}</p>
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: `color-mix(in srgb, ${accent} 15%, transparent)` }}>
-          <Icon size={13} style={{ color: accent }} />
-        </div>
-      </div>
-      <p className={cn('text-xl font-black',
-        positive === true && 'text-[var(--green)]',
-        positive === false && 'text-[var(--red)]',
-        positive === undefined && 'text-white'
-      )}>
-        {value}
-      </p>
-      {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
-      {onClick && <p className="text-[10px] text-[var(--text-muted)] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">ver detalhes →</p>}
-    </div>
-  )
-}
-
-function BreakdownTable({
-  rows,
-  currency,
+function MetricCard({
+  label, value, color, sub, note, onClick,
 }: {
-  rows: { label: string; sessions: number; profit: number }[]
-  currency: 'usd' | 'brl'
+  label: string
+  value: string
+  color: string
+  sub?: string
+  note?: string
+  onClick?: () => void
 }) {
-  if (!rows.length) return <p className="text-xs text-[var(--text-muted)] text-center py-4">Sem dados no período.</p>
   return (
-    <div className="space-y-2">
-      {rows.map(r => (
-        <div key={r.label} className="flex items-center justify-between py-1.5">
-          <div>
-            <p className="text-xs font-semibold text-[var(--foreground)]">{r.label}</p>
-            <p className="text-[11px] text-[var(--text-muted)]">{r.sessions} torneio{r.sessions !== 1 ? 's' : ''}</p>
-          </div>
-          <span className={cn(
-            'text-xs font-bold tabular-nums',
-            r.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
-          )}>
-            {centsToDisplay(r.profit, currency)}
-          </span>
-        </div>
-      ))}
-    </div>
+    <button
+      onClick={onClick}
+      className="relative overflow-hidden bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 text-left group hover:border-opacity-60 transition-colors w-full"
+    >
+      <div
+        className="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full blur-2xl opacity-[0.12] group-hover:opacity-20 transition-opacity"
+        style={{ background: `radial-gradient(circle, ${color}, transparent 70%)` }}
+      />
+      <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-[0.18em] font-bold mb-2">{label}</p>
+      <p className="text-xl font-black leading-none" style={{ color }}>{value}</p>
+      {sub && <p className="text-[10px] text-[var(--text-muted)] mt-1.5">{sub}</p>}
+      {note && <p className="text-[9px] text-[var(--text-dim)] mt-0.5 opacity-60">{note}</p>}
+      <p className="text-[9px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1">
+        ver por sala →
+      </p>
+    </button>
   )
 }
