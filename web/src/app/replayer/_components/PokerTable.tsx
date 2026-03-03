@@ -129,7 +129,7 @@ export function PokerTable({ hand, state, showResults = true }: PokerTableProps)
           fill="rgba(255,255,255,0.07)"
           fontFamily="Georgia, serif"
         >
-          POKER SCHOOL
+          GABRIELFPOKER
         </text>
 
         {/* ── Community cards + pot ── */}

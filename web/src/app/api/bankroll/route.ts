@@ -94,6 +94,23 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ id: data.id }, { status: 201 })
 }
 
+export async function PATCH(req: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
+  const { id, amount_cents, platform_id, date, notes } = await req.json()
+  if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 })
+
+  const { error } = await supabase.from('bankroll_entries')
+    .update({ amount_cents, platform_id: platform_id ?? null, date, notes: notes ?? null })
+    .eq('id', id)
+    .eq('user_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()

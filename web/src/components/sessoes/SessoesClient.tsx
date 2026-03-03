@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { X, ChevronRight, AlertTriangle, Trophy, Clock, CalendarDays, Layers, Shuffle, Monitor, MapPin, Crosshair } from 'lucide-react'
+import { X, ChevronRight, AlertTriangle, Trophy, CalendarDays, Layers, Shuffle, MapPin, Pencil } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 
 interface GrindSession {
@@ -96,11 +97,13 @@ export default function SessoesClient({
   platforms: Platform[]
   hasPendingClose: boolean
 }) {
+  const router = useRouter()
   const [period, setPeriod] = useState<PeriodKey>('week')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [platformId, setPlatformId] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [editTournament, setEditTournament] = useState<Tournament | null>(null)
 
   const tournaments = allTournaments as unknown as Tournament[]
 
@@ -333,13 +336,23 @@ export default function SessoesClient({
                     session={session}
                     stats={sessionStats[session.id] ?? { count: 0, invested: 0, cashout: 0, profit: 0, itmCount: 0 }}
                     tournaments={selectedTournaments}
+                    platforms={platforms}
                     onClose={() => setSelectedId(null)}
+                    onEditTournament={setEditTournament}
                   />
                 )}
               </div>
             )
           })}
         </div>
+      )}
+      {editTournament && (
+        <EditTournamentModal
+          tournament={editTournament}
+          platforms={platforms}
+          onClose={() => setEditTournament(null)}
+          onSuccess={() => { setEditTournament(null); router.refresh() }}
+        />
       )}
     </div>
   )
@@ -349,12 +362,16 @@ function SessionDetail({
   session,
   stats,
   tournaments,
+  platforms,
   onClose,
+  onEditTournament,
 }: {
   session: GrindSession
   stats: { count: number; invested: number; cashout: number; profit: number; itmCount: number }
   tournaments: Tournament[]
+  platforms: Platform[]
   onClose: () => void
+  onEditTournament: (t: Tournament) => void
 }) {
   const roi = stats.invested > 0 ? (stats.profit / stats.invested) * 100 : 0
   const itmPct = stats.count > 0 ? (stats.itmCount / stats.count) * 100 : 0
@@ -418,7 +435,7 @@ function SessionDetail({
               <span className="text-[10px] text-[var(--text-muted)] text-right w-20">Resultado</span>
             </div>
             {tournaments.map((t, i) => (
-              <div key={t.id ?? i} className="grid grid-cols-[1fr_auto_auto_auto] gap-3 items-center px-2 py-2 rounded-lg hover:bg-white/[0.02] transition-colors">
+              <div key={t.id ?? i} className="group grid grid-cols-[1fr_auto_auto_auto_auto] gap-2 items-center px-2 py-2 rounded-lg hover:bg-white/[0.02] transition-colors">
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-[var(--foreground)] truncate">
                     {t.tournament_name ?? t.game_type ?? 'Torneio'}
@@ -444,6 +461,13 @@ function SessionDetail({
                 <span className={cn('text-xs font-bold tabular-nums w-20 text-right', t.profit_cents >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
                   {t.profit_cents >= 0 ? '+' : ''}{formatCurrency(t.profit_cents)}
                 </span>
+                <button
+                  onClick={() => onEditTournament(t)}
+                  title="Editar torneio"
+                  className="opacity-0 group-hover:opacity-100 text-[var(--text-dim)] hover:text-[var(--foreground)] transition-all shrink-0"
+                >
+                  <Pencil size={11} />
+                </button>
               </div>
             ))}
           </div>
@@ -453,6 +477,171 @@ function SessionDetail({
       {tournaments.length === 0 && (
         <p className="text-xs text-[var(--text-muted)] text-center py-2">Nenhum torneio registrado nesta sessão.</p>
       )}
+    </div>
+  )
+}
+
+// ── Edit Tournament Modal ────────────────────────────────────────────────────
+function EditTournamentModal({ tournament, platforms, onClose, onSuccess }: {
+  tournament: Tournament
+  platforms: Platform[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const t = tournament
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    platform_id:     t.platform_id,
+    played_at:       t.played_at,
+    tournament_name: t.tournament_name ?? '',
+    game_type:       t.game_type ?? 'MTT',
+    is_live:         t.is_live ?? false,
+    buy_in:          (t.buy_in_cents / 100).toFixed(2),
+    cash_out:        (t.cash_out_cents / 100).toFixed(2),
+    entries:         t.entries?.toString() ?? '',
+    position:        t.position?.toString() ?? '',
+    itm:             t.itm ?? false,
+    duration:        t.duration_minutes?.toString() ?? '',
+  })
+
+  function set(k: string, v: string | boolean) {
+    setForm(f => ({ ...f, [k]: v }))
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    const buy_in_cents  = Math.round(parseFloat(form.buy_in)  * 100)
+    const cash_out_cents = Math.round(parseFloat(form.cash_out) * 100)
+    if (isNaN(buy_in_cents))  { setError('Buy-in inválido');  return }
+    if (isNaN(cash_out_cents)) { setError('Prêmio inválido'); return }
+
+    setLoading(true)
+    const res = await fetch(`/api/sessions/${t.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        platform_id:     form.platform_id,
+        played_at:       form.played_at,
+        tournament_name: form.tournament_name || null,
+        game_type:       form.game_type,
+        is_live:         form.is_live,
+        buy_in_cents,
+        cash_out_cents,
+        entries:         form.entries ? parseInt(form.entries) : null,
+        position:        form.position ? parseInt(form.position) : null,
+        itm:             form.itm,
+        duration_minutes: form.duration ? parseInt(form.duration) : null,
+      }),
+    })
+    setLoading(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error ?? `Erro ${res.status}`); return
+    }
+    onSuccess()
+  }
+
+  const inputCls = cn(
+    'w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm',
+    'text-[var(--foreground)] placeholder:text-[var(--text-muted)]',
+    'focus:outline-none focus:border-[var(--cyan)]/60 transition-colors',
+    '[&_option]:bg-[var(--surface-2)]'
+  )
+  const btnToggle = (active: boolean) => cn(
+    'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-colors',
+    active
+      ? 'bg-[var(--cyan)]/10 border-[var(--cyan)] text-[var(--cyan)]'
+      : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
+  )
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-lg bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] shrink-0">
+          <h2 className="font-bold text-[var(--foreground)]">Editar Torneio</h2>
+          <button onClick={onClose} className="text-[var(--text-dim)] hover:text-[var(--foreground)]"><X size={18} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Sala</label>
+              <select value={form.platform_id} onChange={e => set('platform_id', e.target.value)} className={inputCls}>
+                {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Data</label>
+              <input type="date" value={form.played_at} onChange={e => set('played_at', e.target.value)} className={inputCls} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs text-[var(--text-muted)] font-medium">Nome do Torneio</label>
+            <input type="text" value={form.tournament_name} onChange={e => set('tournament_name', e.target.value)} placeholder="Ex: Sunday Special" className={inputCls} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Tipo</label>
+              <select value={form.game_type} onChange={e => set('game_type', e.target.value)} className={inputCls}>
+                {['MTT', 'SNG', 'Spin&Go', 'Cash', 'Outros'].map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Duração (min)</label>
+              <input type="number" min="0" value={form.duration} onChange={e => set('duration', e.target.value)} placeholder="Ex: 120" className={inputCls} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Buy-in ($) *</label>
+              <input type="number" min="0" step="0.01" value={form.buy_in} onChange={e => set('buy_in', e.target.value)} required className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Prêmio ($)</label>
+              <input type="number" min="0" step="0.01" value={form.cash_out} onChange={e => set('cash_out', e.target.value)} className={inputCls} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Entries</label>
+              <input type="number" min="1" value={form.entries} onChange={e => set('entries', e.target.value)} placeholder="Ex: 500" className={inputCls} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-[var(--text-muted)] font-medium">Posição</label>
+              <input type="number" min="1" value={form.position} onChange={e => set('position', e.target.value)} placeholder="Ex: 12" className={inputCls} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <button type="button" onClick={() => set('is_live', !form.is_live)} className={btnToggle(form.is_live)}>
+              🎰 Live
+            </button>
+            <button type="button" onClick={() => set('itm', !form.itm)} className={btnToggle(form.itm)}>
+              <Trophy size={13} /> ITM
+            </button>
+            <div /> {/* spacer */}
+          </div>
+
+          {error && <p className="text-[var(--red)] text-sm">{error}</p>}
+        </form>
+
+        <div className="flex gap-3 px-5 py-4 border-t border-[var(--border)] shrink-0">
+          <button type="button" onClick={onClose}
+            className="px-4 py-2.5 rounded-xl border border-[var(--border)] text-[var(--text-dim)] text-sm hover:bg-white/5 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleSubmit as unknown as React.MouseEventHandler} disabled={loading}
+            className="flex-1 py-2.5 rounded-xl bg-[var(--cyan)] hover:opacity-90 text-white font-bold text-sm transition-opacity disabled:opacity-50">
+            {loading ? 'Salvando...' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

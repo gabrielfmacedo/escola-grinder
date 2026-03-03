@@ -27,8 +27,8 @@ const orbitron = Orbitron({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Poker School',
-    template: '%s · Poker School',
+    default: 'gabrielfpoker | Mentoria Evolution',
+    template: '%s · gabrielfpoker',
   },
   description: 'A plataforma definitiva para treinar, evoluir e dominar o poker.',
   keywords: ['poker', 'GTO', 'treinamento', 'ranges', 'simulador'],

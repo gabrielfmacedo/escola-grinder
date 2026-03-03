@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import MiniPnLChart, { PeakPoint } from '@/components/banca/MiniPnLChart'
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts'
 
 interface Session {
   id: string
@@ -28,6 +28,7 @@ interface Session {
 interface Platform { id: string; name: string }
 
 type SortCol = 'sessions' | 'roi' | 'invested' | 'cashout' | 'saldo'
+type TypeTab = 'geral' | 'online' | 'live'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
@@ -53,32 +54,34 @@ function getDateEnd(days: number): Date | null {
   return null
 }
 
-function modalTitle(key: string): string {
-  const titles: Record<string, string> = {
-    saldo: 'Saldo por Sala', roi: 'ROI por Sala', buyin: 'Buy-in Total por Sala',
-    lucro: 'Lucro por Sala', premio: 'Prêmios por Sala', volume: 'Volume por Sala',
-    pertorneio: '$ por Torneio por Sala', itm: '% ITM por Sala',
-    dias: 'Dias Jogados por Sala', buyin_medio: 'Buy-in Médio por Sala',
-    melhordia: 'Melhor Dia', piordia: 'Pior Dia',
-  }
-  return titles[key] ?? key
+// ── Custom tooltip for Recharts ─────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+  if (!active || !payload?.length) return null
+  const val = payload[0].value as number
+  const isPos = val >= 0
+  return (
+    <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-3 py-2 shadow-xl">
+      {label && <p className="text-[10px] text-[var(--text-muted)] mb-1">{label}</p>}
+      <p className="text-sm font-bold" style={{ color: isPos ? 'var(--green)' : 'var(--red)' }}>
+        {isPos ? '+' : ''}{typeof val === 'number' ? `$${Math.abs(val).toFixed(2)}` : val}
+      </p>
+    </div>
+  )
 }
 
+// ── Breakdown modal ─────────────────────────────────────────────────────────
 function BreakdownModal({ title, rows, onClose }: {
   title: string
   rows: { label: string; value: string; color?: string }[]
   onClose: () => void
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5 min-w-[240px] max-w-sm mx-4 max-h-80 overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <h3 className="font-bold text-white mb-3 text-sm">{title}</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5 min-w-[240px] max-w-sm mx-4 max-h-80 overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-white text-sm">{title}</h3>
+          <button onClick={onClose} className="text-[var(--text-dim)] hover:text-white"><X size={15} /></button>
+        </div>
         {rows.length === 0
           ? <p className="text-xs text-[var(--text-muted)]">Sem dados para exibir.</p>
           : rows.map(r => (
@@ -93,6 +96,7 @@ function BreakdownModal({ title, rows, onClose }: {
   )
 }
 
+// ── Metric card (clickable) ──────────────────────────────────────────────────
 function MetricCard({ label, value, sub, positive, onClick, highlighted }: {
   label: string
   value: string
@@ -115,12 +119,6 @@ function MetricCard({ label, value, sub, positive, onClick, highlighted }: {
         onClick && 'hover:border-[var(--border-hi)] cursor-pointer'
       )}
     >
-      {onClick && (
-        <div
-          className="pointer-events-none absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ background: 'radial-gradient(circle at 50% 0%, rgba(230,48,48,0.04), transparent 60%)' }}
-        />
-      )}
       <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-[0.12em] font-medium mb-2">{label}</p>
       <p className="text-xl font-black" style={{ color: valueColor }}>{value}</p>
       {sub && <p className="text-[10px] text-[var(--text-muted)] mt-1">{sub}</p>}
@@ -133,21 +131,7 @@ function MetricCard({ label, value, sub, positive, onClick, highlighted }: {
   )
 }
 
-function SmallStatCard({ label, value, color, sub }: {
-  label: string
-  value: string
-  color?: string
-  sub?: string
-}) {
-  return (
-    <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3">
-      <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">{label}</p>
-      <p className="text-base font-bold" style={{ color: color ?? 'var(--foreground)' }}>{value}</p>
-      {sub && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{sub}</p>}
-    </div>
-  )
-}
-
+// ── Main component ──────────────────────────────────────────────────────────
 export default function PerformanceClient({
   initialSessions,
   platforms,
@@ -158,6 +142,7 @@ export default function PerformanceClient({
   platformBalances: Record<string, number>
 }) {
   const [periodIdx, setPeriodIdx] = useState(0)
+  const [typeTab, setTypeTab] = useState<TypeTab>('geral')
   const [platformId, setPlatformId] = useState('')
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
   const [minBuyIn, setMinBuyIn] = useState('')
@@ -167,18 +152,16 @@ export default function PerformanceClient({
   const [sortBy, setSortBy] = useState<SortCol>('sessions')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  const hasActiveFilter = periodIdx !== 0 || platformId !== '' || selectedDays.size > 0 || minBuyIn !== '' || maxBuyIn !== ''
+  const hasLive = initialSessions.some(s => s.is_live)
+  const hasActiveFilter = periodIdx !== 0 || platformId !== '' || selectedDays.size > 0 || minBuyIn !== '' || maxBuyIn !== '' || typeTab !== 'geral'
 
   function clearFilters() {
-    setPeriodIdx(0); setPlatformId(''); setSelectedDays(new Set()); setMinBuyIn(''); setMaxBuyIn('')
+    setPeriodIdx(0); setPlatformId(''); setSelectedDays(new Set())
+    setMinBuyIn(''); setMaxBuyIn(''); setTypeTab('geral')
   }
 
   function toggleDay(d: number) {
-    setSelectedDays(prev => {
-      const next = new Set(prev)
-      if (next.has(d)) next.delete(d); else next.add(d)
-      return next
-    })
+    setSelectedDays(prev => { const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n })
   }
 
   function toggleSort(col: SortCol) {
@@ -193,6 +176,8 @@ export default function PerformanceClient({
     const to = getDateEnd(period.days)
     if (from) s = s.filter(x => new Date(x.played_at) >= from)
     if (to) s = s.filter(x => new Date(x.played_at) < to)
+    if (typeTab === 'online') s = s.filter(x => !x.is_live)
+    if (typeTab === 'live')   s = s.filter(x => x.is_live)
     if (platformId) s = s.filter(x => x.platform_id === platformId)
     if (selectedDays.size > 0) s = s.filter(x => selectedDays.has(new Date(x.played_at).getDay()))
     const minCents = minBuyIn ? Math.round(parseFloat(minBuyIn) * 100) : null
@@ -200,18 +185,16 @@ export default function PerformanceClient({
     if (minCents !== null) s = s.filter(x => x.buy_in_cents >= minCents)
     if (maxCents !== null) s = s.filter(x => x.buy_in_cents <= maxCents)
     return s
-  }, [initialSessions, periodIdx, platformId, selectedDays, minBuyIn, maxBuyIn])
+  }, [initialSessions, periodIdx, typeTab, platformId, selectedDays, minBuyIn, maxBuyIn])
 
   // Core aggregates
-  const {
-    totalProfit, totalInvested, totalCashout, totalMinutes, totalSessions, itmCount,
-  } = useMemo(() => ({
-    totalProfit: filteredSessions.reduce((a, s) => a + s.profit_cents, 0),
+  const { totalProfit, totalInvested, totalCashout, totalMinutes, totalSessions, itmCount } = useMemo(() => ({
+    totalProfit:   filteredSessions.reduce((a, s) => a + s.profit_cents, 0),
     totalInvested: filteredSessions.reduce((a, s) => a + s.buy_in_cents, 0),
-    totalCashout: filteredSessions.reduce((a, s) => a + s.cash_out_cents, 0),
-    totalMinutes: filteredSessions.reduce((a, s) => a + (s.duration_minutes ?? 0), 0),
+    totalCashout:  filteredSessions.reduce((a, s) => a + s.cash_out_cents, 0),
+    totalMinutes:  filteredSessions.reduce((a, s) => a + (s.duration_minutes ?? 0), 0),
     totalSessions: filteredSessions.length,
-    itmCount: filteredSessions.filter(s => s.itm).length,
+    itmCount:      filteredSessions.filter(s => s.itm).length,
   }), [filteredSessions])
 
   const totalSaldo = Object.values(platformBalances).reduce((a, b) => a + b, 0)
@@ -220,24 +203,25 @@ export default function PerformanceClient({
   const profitPerSession = totalSessions > 0 ? totalProfit / totalSessions : 0
   const hoursPlayed = totalMinutes / 60
 
-  // By platform (for modals + table)
+  // By platform (includes minutes for new modals)
   const byPlatform = useMemo(() => {
-    const map: Record<string, { id: string; name: string; sessions: number; profit: number; invested: number; cashout: number; itmCount: number; days: Set<string> }> = {}
+    const map: Record<string, { id: string; name: string; sessions: number; profit: number; invested: number; cashout: number; itmCount: number; days: Set<string>; minutes: number }> = {}
     for (const s of filteredSessions) {
       if (!map[s.platform_id]) {
-        map[s.platform_id] = { id: s.platform_id, name: s.platform_name, sessions: 0, profit: 0, invested: 0, cashout: 0, itmCount: 0, days: new Set() }
+        map[s.platform_id] = { id: s.platform_id, name: s.platform_name, sessions: 0, profit: 0, invested: 0, cashout: 0, itmCount: 0, days: new Set(), minutes: 0 }
       }
       map[s.platform_id].sessions++
-      map[s.platform_id].profit += s.profit_cents
+      map[s.platform_id].profit   += s.profit_cents
       map[s.platform_id].invested += s.buy_in_cents
-      map[s.platform_id].cashout += s.cash_out_cents
+      map[s.platform_id].cashout  += s.cash_out_cents
+      map[s.platform_id].minutes  += s.duration_minutes ?? 0
       if (s.itm) map[s.platform_id].itmCount++
       map[s.platform_id].days.add(s.played_at.slice(0, 10))
     }
     return Object.values(map)
   }, [filteredSessions])
 
-  // Chart data + top-5 peaks
+  // Chart data + peaks
   const { chartData, peaks } = useMemo(() => {
     const sorted = [...filteredSessions].sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime())
     let cumulative = 0
@@ -251,41 +235,63 @@ export default function PerformanceClient({
     return { chartData, peaks }
   }, [filteredSessions])
 
-  // Unique days set
+  // Unique days
   const uniqueDaysSet = useMemo(() => new Set(filteredSessions.map(s => s.played_at.slice(0, 10))), [filteredSessions])
   const uniqueDays = uniqueDaysSet.size
 
-  // By-date aggregates (dias up/down, best/worst day)
-  const { diasUp, diasDown, bestDay, worstDay } = useMemo(() => {
+  // By-date aggregates (best/worst day, diasUp)
+  const { diasUp, bestDay, worstDay } = useMemo(() => {
     const map: Record<string, { profit: number; invested: number; cashout: number; date: string }> = {}
     for (const s of filteredSessions) {
       const d = s.played_at.slice(0, 10)
       if (!map[d]) map[d] = { profit: 0, invested: 0, cashout: 0, date: d }
-      map[d].profit += s.profit_cents
+      map[d].profit   += s.profit_cents
       map[d].invested += s.buy_in_cents
-      map[d].cashout += s.cash_out_cents
+      map[d].cashout  += s.cash_out_cents
     }
     const entries = Object.values(map)
     const diasUp = entries.filter(e => e.profit > 0).length
-    const diasDown = entries.filter(e => e.profit < 0).length
-    const bestDay = entries.length ? entries.reduce((b, e) => e.profit > b.profit ? e : b, entries[0]) : null
+    const bestDay  = entries.length ? entries.reduce((b, e) => e.profit > b.profit ? e : b, entries[0]) : null
     const worstDay = entries.length ? entries.reduce((b, e) => e.profit < b.profit ? e : b, entries[0]) : null
-    return { diasUp, diasDown, bestDay, worstDay }
+    return { diasUp, bestDay, worstDay }
   }, [filteredSessions])
 
-  // Streaks
-  const { maxWinStreak, maxLoseStreak } = useMemo(() => {
-    const sorted = [...filteredSessions].sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime())
-    let maxWin = 0, maxLose = 0, curWin = 0, curLose = 0
-    for (const s of sorted) {
-      if (s.profit_cents > 0) { curWin++; curLose = 0; maxWin = Math.max(maxWin, curWin) }
-      else if (s.profit_cents < 0) { curLose++; curWin = 0; maxLose = Math.max(maxLose, curLose) }
-      else { curWin = 0; curLose = 0 }
+  // Streaks by DAYS (not sessions)
+  const { maxWinStreak, maxLoseStreak, winStreakDates, loseStreakDates } = useMemo(() => {
+    // Build sorted list of unique days with their aggregate profit
+    const dayMap: Record<string, number> = {}
+    for (const s of filteredSessions) {
+      const d = s.played_at.slice(0, 10)
+      dayMap[d] = (dayMap[d] ?? 0) + s.profit_cents
     }
-    return { maxWinStreak: maxWin, maxLoseStreak: maxLose }
+    const days = Object.entries(dayMap).sort(([a], [b]) => a.localeCompare(b))
+
+    let maxWin = 0, maxLose = 0, curWin = 0, curLose = 0
+    let winStart = '', winEnd = '', loseStart = '', loseEnd = ''
+    let tmpWinStart = '', tmpLoseStart = ''
+
+    for (const [date, profit] of days) {
+      if (profit > 0) {
+        if (curWin === 0) tmpWinStart = date
+        curWin++; curLose = 0
+        if (curWin > maxWin) { maxWin = curWin; winStart = tmpWinStart; winEnd = date }
+      } else if (profit < 0) {
+        if (curLose === 0) tmpLoseStart = date
+        curLose++; curWin = 0
+        if (curLose > maxLose) { maxLose = curLose; loseStart = tmpLoseStart; loseEnd = date }
+      } else {
+        curWin = 0; curLose = 0
+      }
+    }
+    return {
+      maxWinStreak:  maxWin,
+      maxLoseStreak: maxLose,
+      winStreakDates:  maxWin  > 0 ? { start: winStart,  end: winEnd  } : null,
+      loseStreakDates: maxLose > 0 ? { start: loseStart, end: loseEnd } : null,
+    }
   }, [filteredSessions])
 
-  // By day of week (for bar chart)
+  // By day of week
   const byDayOfWeek = useMemo(() => {
     const map: Record<number, { sessions: number; profit: number }> = {}
     for (const s of filteredSessions) {
@@ -306,23 +312,24 @@ export default function PerformanceClient({
       const aSaldo = platformBalances[a.id] ?? 0
       const bSaldo = platformBalances[b.id] ?? 0
       if (sortBy === 'sessions') return (a.sessions - b.sessions) * dir
-      if (sortBy === 'roi') return (aRoi - bRoi) * dir
+      if (sortBy === 'roi')      return (aRoi - bRoi) * dir
       if (sortBy === 'invested') return (a.invested - b.invested) * dir
-      if (sortBy === 'cashout') return (a.cashout - b.cashout) * dir
-      if (sortBy === 'saldo') return (aSaldo - bSaldo) * dir
+      if (sortBy === 'cashout')  return (a.cashout - b.cashout) * dir
+      if (sortBy === 'saldo')    return (aSaldo - bSaldo) * dir
       return 0
     })
   }, [byPlatform, sortBy, sortDir, platformBalances])
 
   // Derived scalar metrics
-  const jogosPorDia = uniqueDays > 0 ? totalSessions / uniqueDays : 0
-  const horasPorDia = uniqueDays > 0 ? hoursPlayed / uniqueDays : 0
+  const jogosPorDia   = uniqueDays > 0 ? totalSessions / uniqueDays : 0
+  const horasPorDia   = uniqueDays > 0 ? hoursPlayed / uniqueDays : 0
   const profitPerHour = hoursPlayed > 0 ? totalProfit / hoursPlayed : 0
-  const profitPerDay = uniqueDays > 0 ? totalProfit / uniqueDays : 0
-  const avgBuyIn = totalSessions > 0 ? totalInvested / totalSessions : 0
+  const profitPerDay  = uniqueDays > 0 ? totalProfit / uniqueDays : 0
+  const avgBuyIn      = totalSessions > 0 ? totalInvested / totalSessions : 0
 
-  // Modal row builder
+  // Modal rows
   function buildModalRows(key: string): { label: string; value: string; color?: string }[] {
+    const fmtDate = (d: string) => new Date(d).toLocaleDateString('pt-BR')
     switch (key) {
       case 'saldo':
         return byPlatform.map(p => ({ label: p.name, value: formatCurrency(platformBalances[p.id] ?? 0), color: (platformBalances[p.id] ?? 0) >= 0 ? 'var(--green)' : 'var(--red)' }))
@@ -344,6 +351,28 @@ export default function PerformanceClient({
         return byPlatform.map(p => ({ label: p.name, value: `${p.days.size} dia${p.days.size !== 1 ? 's' : ''}` }))
       case 'buyin_medio':
         return byPlatform.map(p => { const avg = p.sessions > 0 ? p.invested / p.sessions : 0; return { label: p.name, value: formatCurrency(avg) } })
+      case 'jogosPorDia':
+        return byPlatform.map(p => ({ label: p.name, value: p.days.size > 0 ? (p.sessions / p.days.size).toFixed(1) : '—' }))
+      case 'horas':
+        return byPlatform.map(p => ({ label: p.name, value: p.minutes > 0 ? `${(p.minutes / 60).toFixed(1)}h` : '—' }))
+      case 'horasPorDia':
+        return byPlatform.map(p => ({ label: p.name, value: (p.minutes > 0 && p.days.size > 0) ? `${(p.minutes / 60 / p.days.size).toFixed(1)}h` : '—' }))
+      case 'porHora':
+        return byPlatform.map(p => { const h = p.minutes / 60; const v = h > 0 ? p.profit / h : 0; return { label: p.name, value: h > 0 ? (v >= 0 ? '+' : '') + formatCurrency(v) : '—', color: h > 0 ? (v >= 0 ? 'var(--green)' : 'var(--red)') : undefined } })
+      case 'winStreak':
+        if (!winStreakDates) return [{ label: 'Sem dados', value: '—' }]
+        return [
+          { label: 'Duração', value: `${maxWinStreak} dia${maxWinStreak !== 1 ? 's' : ''}`, color: 'var(--green)' },
+          { label: 'Início', value: fmtDate(winStreakDates.start) },
+          { label: 'Fim', value: fmtDate(winStreakDates.end) },
+        ]
+      case 'loseStreak':
+        if (!loseStreakDates) return [{ label: 'Sem dados', value: '—' }]
+        return [
+          { label: 'Duração', value: `${maxLoseStreak} dia${maxLoseStreak !== 1 ? 's' : ''}`, color: 'var(--red)' },
+          { label: 'Início', value: fmtDate(loseStreakDates.start) },
+          { label: 'Fim', value: fmtDate(loseStreakDates.end) },
+        ]
       case 'melhordia':
         if (!bestDay) return []
         return [
@@ -364,6 +393,20 @@ export default function PerformanceClient({
     }
   }
 
+  function modalTitle(key: string): string {
+    const titles: Record<string, string> = {
+      saldo: 'Saldo por Sala', roi: 'ROI por Sala', buyin: 'Buy-in Total por Sala',
+      lucro: 'Lucro por Sala', premio: 'Prêmios por Sala', volume: 'Volume por Sala',
+      pertorneio: '$ por Torneio por Sala', itm: '% ITM por Sala',
+      dias: 'Dias Jogados por Sala', buyin_medio: 'Buy-in Médio por Sala',
+      jogosPorDia: 'Jogos por Dia por Sala', horas: 'Horas Jogadas por Sala',
+      horasPorDia: 'Horas por Dia por Sala', porHora: '$ por Hora por Sala',
+      winStreak: 'Sequência de Vitórias', loseStreak: 'Sequência de Derrotas',
+      melhordia: 'Melhor Dia', piordia: 'Pior Dia',
+    }
+    return titles[key] ?? key
+  }
+
   const inputCls = cn(
     'w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs',
     'text-[var(--foreground)] placeholder:text-[var(--text-muted)]',
@@ -375,7 +418,6 @@ export default function PerformanceClient({
 
   return (
     <div className="space-y-4">
-      {/* Breakdown modal */}
       {modal && (
         <BreakdownModal title={modalTitle(modal)} rows={buildModalRows(modal)} onClose={() => setModal(null)} />
       )}
@@ -411,6 +453,25 @@ export default function PerformanceClient({
             <Plus size={14} /> Novo Torneio
           </Link>
         </div>
+      </div>
+
+      {/* ── Type tabs: GERAL / ONLINE / LIVE ── */}
+      <div className="flex gap-1 bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-1 w-fit">
+        {(['geral', 'online', 'live'] as const).map(t => (
+          <button
+            key={t}
+            disabled={t === 'live' && !hasLive}
+            onClick={() => setTypeTab(t)}
+            className={cn(
+              'px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide transition-all',
+              typeTab === t
+                ? 'bg-[var(--surface-2)] text-white shadow-sm'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-dim)] disabled:opacity-30 disabled:cursor-not-allowed'
+            )}
+          >
+            {t === 'live' ? '🎰 Live' : t === 'online' ? '💻 Online' : '📊 Geral'}
+          </button>
+        ))}
       </div>
 
       {/* ── Filter panel ── */}
@@ -468,61 +529,21 @@ export default function PerformanceClient({
 
       {/* ── Linha 1: SALDO TOTAL | ROI | BUY-IN TOTAL | LUCRO TOTAL ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard
-          label="SALDO TOTAL"
-          value={formatCurrency(totalSaldo)}
-          sub="banca atual"
-          positive={totalSaldo >= 0}
-          highlighted
-          onClick={() => setModal('saldo')}
-        />
-        <MetricCard
-          label="ROI"
-          value={`${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`}
-          positive={roi >= 0}
-          highlighted
-          onClick={() => setModal('roi')}
-        />
-        <MetricCard
-          label="BUY-IN TOTAL"
-          value={formatCurrency(totalInvested)}
-          onClick={() => setModal('buyin')}
-        />
-        <MetricCard
-          label="LUCRO TOTAL"
-          value={`${totalProfit >= 0 ? '+' : ''}${formatCurrency(totalProfit)}`}
-          positive={totalProfit >= 0}
-          onClick={() => setModal('lucro')}
-        />
+        <MetricCard label="SALDO TOTAL" value={formatCurrency(totalSaldo)} sub="banca atual" positive={totalSaldo >= 0} highlighted onClick={() => setModal('saldo')} />
+        <MetricCard label="ROI" value={`${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`} positive={roi >= 0} highlighted onClick={() => setModal('roi')} />
+        <MetricCard label="BUY-IN TOTAL" value={formatCurrency(totalInvested)} onClick={() => setModal('buyin')} />
+        <MetricCard label="LUCRO TOTAL" value={`${totalProfit >= 0 ? '+' : ''}${formatCurrency(totalProfit)}`} positive={totalProfit >= 0} onClick={() => setModal('lucro')} />
       </div>
 
       {/* ── Linha 2: PRÊMIO TOTAL | VOLUME | $/TORNEIO | %ITM ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard
-          label="PRÊMIO TOTAL"
-          value={formatCurrency(totalCashout)}
-          onClick={() => setModal('premio')}
-        />
-        <MetricCard
-          label="VOLUME"
-          value={String(totalSessions)}
-          sub="torneios"
-          onClick={() => setModal('volume')}
-        />
-        <MetricCard
-          label="$ / TORNEIO"
-          value={`${profitPerSession >= 0 ? '+' : ''}${formatCurrency(profitPerSession)}`}
-          positive={profitPerSession >= 0}
-          onClick={() => setModal('pertorneio')}
-        />
-        <MetricCard
-          label="% ITM"
-          value={`${itmPct.toFixed(1)}%`}
-          onClick={() => setModal('itm')}
-        />
+        <MetricCard label="PRÊMIO TOTAL" value={formatCurrency(totalCashout)} onClick={() => setModal('premio')} />
+        <MetricCard label="VOLUME" value={String(totalSessions)} sub="torneios" onClick={() => setModal('volume')} />
+        <MetricCard label="$ / TORNEIO" value={`${profitPerSession >= 0 ? '+' : ''}${formatCurrency(profitPerSession)}`} positive={profitPerSession >= 0} onClick={() => setModal('pertorneio')} />
+        <MetricCard label="% ITM" value={`${itmPct.toFixed(1)}%`} onClick={() => setModal('itm')} />
       </div>
 
-      {/* ── Linha 3: Gráfico 60% + [DIAS JOGADOS / BUY-IN MÉDIO] 40% ── */}
+      {/* ── Linha 3: Gráfico 60% + DIAS JOGADOS / BUY-IN MÉDIO 40% ── */}
       {chartData.length > 0 && (
         <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
           <div className="grid grid-cols-[60%_40%] gap-4 items-center">
@@ -531,16 +552,8 @@ export default function PerformanceClient({
               <MiniPnLChart data={chartData} positive={totalProfit >= 0} peaks={peaks} height={160} />
             </div>
             <div className="flex flex-col gap-3">
-              <MetricCard
-                label="DIAS JOGADOS"
-                value={String(uniqueDays)}
-                onClick={() => setModal('dias')}
-              />
-              <MetricCard
-                label="BUY-IN MÉDIO"
-                value={formatCurrency(avgBuyIn)}
-                onClick={() => setModal('buyin_medio')}
-              />
+              <MetricCard label="DIAS JOGADOS" value={String(uniqueDays)} onClick={() => setModal('dias')} />
+              <MetricCard label="BUY-IN MÉDIO" value={formatCurrency(avgBuyIn)} onClick={() => setModal('buyin_medio')} />
             </div>
           </div>
         </div>
@@ -548,76 +561,70 @@ export default function PerformanceClient({
 
       {totalSessions > 0 && (
         <>
-          {/* ── Linha 4: DIAS JOGADOS | JOGOS/DIA | HORAS JOGADAS | H/DIA | $/HORA ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <SmallStatCard label="DIAS JOGADOS" value={String(uniqueDays)} />
-            <SmallStatCard label="JOGOS / DIA" value={uniqueDays > 0 ? jogosPorDia.toFixed(1) : '—'} />
-            <SmallStatCard
+          {/* ── Linha 4: JOGOS/DIA | HORAS JOGADAS | H/DIA | $/HORA ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetricCard
+              label="JOGOS / DIA"
+              value={uniqueDays > 0 ? jogosPorDia.toFixed(1) : '—'}
+              onClick={() => setModal('jogosPorDia')}
+            />
+            <MetricCard
               label="HORAS JOGADAS"
               value={totalMinutes > 0 ? `${hoursPlayed.toFixed(1)}h` : '—'}
+              onClick={() => setModal('horas')}
             />
-            <SmallStatCard
+            <MetricCard
               label="H / DIA"
               value={uniqueDays > 0 && totalMinutes > 0 ? `${horasPorDia.toFixed(1)}h` : '—'}
+              onClick={() => setModal('horasPorDia')}
             />
-            <SmallStatCard
+            <MetricCard
               label="$ / HORA"
               value={hoursPlayed > 0 ? `${profitPerHour >= 0 ? '+' : ''}${formatCurrency(profitPerHour)}` : '—'}
-              color={hoursPlayed > 0 ? (profitPerHour >= 0 ? 'var(--green)' : 'var(--red)') : undefined}
+              positive={hoursPlayed > 0 ? profitPerHour >= 0 : undefined}
+              onClick={() => setModal('porHora')}
             />
           </div>
 
           {/* ── Linha 5: DIAS UP | $/DIA | MELHOR DIA | PIOR DIA ── */}
           {uniqueDays > 0 && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* DIAS UP com barra */}
               <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3">
                 <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">DIAS UP</p>
                 <p className="text-base font-bold text-[var(--green)]">
-                  {diasUp}
-                  <span className="text-xs text-[var(--text-muted)] font-normal"> / {uniqueDays}</span>
+                  {diasUp}<span className="text-xs text-[var(--text-muted)] font-normal"> / {uniqueDays}</span>
                 </p>
                 <div className="mt-2 h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-[var(--green)]"
-                    style={{ width: `${Math.min(100, (diasUp / Math.max(1, uniqueDays)) * 100)}%` }}
-                  />
+                  <div className="h-full rounded-full bg-[var(--green)]" style={{ width: `${Math.min(100, (diasUp / Math.max(1, uniqueDays)) * 100)}%` }} />
                 </div>
               </div>
 
-              <SmallStatCard
-                label="$ / DIA"
-                value={`${profitPerDay >= 0 ? '+' : ''}${formatCurrency(profitPerDay)}`}
-                color={profitPerDay >= 0 ? 'var(--green)' : 'var(--red)'}
-              />
+              <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3">
+                <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">$ / DIA</p>
+                <p className="text-base font-bold" style={{ color: profitPerDay >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                  {profitPerDay >= 0 ? '+' : ''}{formatCurrency(profitPerDay)}
+                </p>
+              </div>
 
-              <button
-                onClick={() => setModal('melhordia')}
-                className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full"
-              >
+              <button onClick={() => setModal('melhordia')}
+                className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full">
                 <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">MELHOR DIA</p>
                 <p className="text-base font-bold text-[var(--green)]">
                   {bestDay && bestDay.profit > 0 ? `+${formatCurrency(bestDay.profit)}` : '—'}
                 </p>
                 {bestDay && bestDay.profit > 0 && (
-                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
-                    {new Date(bestDay.date).toLocaleDateString('pt-BR')}
-                  </p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{new Date(bestDay.date).toLocaleDateString('pt-BR')}</p>
                 )}
               </button>
 
-              <button
-                onClick={() => setModal('piordia')}
-                className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full"
-              >
+              <button onClick={() => setModal('piordia')}
+                className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full">
                 <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">PIOR DIA</p>
                 <p className="text-base font-bold text-[var(--red)]">
                   {worstDay && worstDay.profit < 0 ? formatCurrency(worstDay.profit) : '—'}
                 </p>
                 {worstDay && worstDay.profit < 0 && (
-                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
-                    {new Date(worstDay.date).toLocaleDateString('pt-BR')}
-                  </p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{new Date(worstDay.date).toLocaleDateString('pt-BR')}</p>
                 )}
               </button>
             </div>
@@ -625,21 +632,26 @@ export default function PerformanceClient({
 
           {/* ── Linha 6: SEQ. VITÓRIAS | SEQ. DERROTAS | FIELD MÉDIO ── */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <SmallStatCard
-              label="SEQ. VITÓRIAS"
-              value={maxWinStreak > 0 ? `${maxWinStreak} torneio${maxWinStreak !== 1 ? 's' : ''}` : '—'}
-              color={maxWinStreak > 0 ? 'var(--green)' : undefined}
-            />
-            <SmallStatCard
-              label="SEQ. DERROTAS"
-              value={maxLoseStreak > 0 ? `${maxLoseStreak} torneio${maxLoseStreak !== 1 ? 's' : ''}` : '—'}
-              color={maxLoseStreak > 0 ? 'var(--red)' : undefined}
-            />
-            <SmallStatCard
-              label="FIELD MÉDIO"
-              value="—"
-              sub="requer campo total_players"
-            />
+            <button onClick={() => setModal('winStreak')}
+              className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">SEQ. VITÓRIAS</p>
+              <p className="text-base font-bold" style={{ color: maxWinStreak > 0 ? 'var(--green)' : undefined }}>
+                {maxWinStreak > 0 ? `${maxWinStreak} dia${maxWinStreak !== 1 ? 's' : ''}` : '—'}
+              </p>
+              {winStreakDates && <p className="text-[9px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1">ver detalhes →</p>}
+            </button>
+            <button onClick={() => setModal('loseStreak')}
+              className="group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 hover:border-[var(--border-hi)] transition-all w-full">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">SEQ. DERROTAS</p>
+              <p className="text-base font-bold" style={{ color: maxLoseStreak > 0 ? 'var(--red)' : undefined }}>
+                {maxLoseStreak > 0 ? `${maxLoseStreak} dia${maxLoseStreak !== 1 ? 's' : ''}` : '—'}
+              </p>
+              {loseStreakDates && <p className="text-[9px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity mt-1">ver detalhes →</p>}
+            </button>
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3">
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1.5">FIELD MÉDIO</p>
+              <p className="text-base font-bold text-[var(--foreground)]">—</p>
+            </div>
           </div>
 
           {/* ── Linha 7: Bar charts ── */}
@@ -648,17 +660,13 @@ export default function PerformanceClient({
               <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
                 <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Resultado por Sala</h2>
                 <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={barPlatformData} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                    <Tooltip
-                      formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']}
-                      contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                    />
-                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                  <BarChart data={barPlatformData} margin={{ top: 4, right: 0, left: -20, bottom: 0 }} barCategoryGap="40%">
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="profit" radius={[4, 4, 0, 0]} maxBarSize={48} activeBar={false}>
                       {barPlatformData.map((r, i) => (
-                        <Cell key={i} fill={r.profit >= 0 ? 'var(--green)' : 'var(--red)'} fillOpacity={0.8} />
+                        <Cell key={i} fill={r.profit >= 0 ? 'var(--green)' : 'var(--red)'} fillOpacity={0.85} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -670,17 +678,13 @@ export default function PerformanceClient({
               <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
                 <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Lucro por Dia da Semana</h2>
                 <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={byDayOfWeek} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                    <Tooltip
-                      formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']}
-                      contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
-                    />
-                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                  <BarChart data={byDayOfWeek} margin={{ top: 4, right: 0, left: -20, bottom: 0 }} barCategoryGap="40%">
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Bar dataKey="profit" radius={[4, 4, 0, 0]} maxBarSize={48} activeBar={false}>
                       {byDayOfWeek.map((r, i) => (
-                        <Cell key={i} fill={r.profit >= 0 ? 'var(--cyan)' : 'var(--red)'} fillOpacity={0.7} />
+                        <Cell key={i} fill={r.profit >= 0 ? 'var(--green)' : 'var(--red)'} fillOpacity={0.85} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -706,10 +710,8 @@ export default function PerformanceClient({
                         { col: 'saldo' as SortCol, label: 'Saldo' },
                       ]).map(({ col, label }) => (
                         <th key={col} className="text-right pb-2 pr-3 last:pr-0">
-                          <button
-                            onClick={() => toggleSort(col)}
-                            className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)] uppercase tracking-wide hover:text-white transition-colors ml-auto"
-                          >
+                          <button onClick={() => toggleSort(col)}
+                            className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)] uppercase tracking-wide hover:text-white transition-colors ml-auto">
                             {label}
                             {sortBy === col ? (sortDir === 'desc' ? <ChevronDown size={10} /> : <ChevronUp size={10} />) : null}
                           </button>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Modo Grind · Poker School',
+  title: 'Modo Grind · gabrielfpoker',
 }
 
 export default function GrindFocusLayout({ children }: { children: React.ReactNode }) {

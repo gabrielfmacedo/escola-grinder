@@ -351,7 +351,7 @@ export default function DashboardClient({
       </div>
 
       {/* ── Gráfico 60% + métricas 40% ─────────────────────────── */}
-      {chartData.length > 1 && (
+      {chartData.length > 0 && (
         <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm font-bold text-white">Evolução da Banca</p>

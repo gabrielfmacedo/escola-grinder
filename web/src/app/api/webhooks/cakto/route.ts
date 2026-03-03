@@ -139,7 +139,7 @@ async function grantAccess({ supabase, email, name, caktoProductId, caktoSubscri
   await supabase.from('notifications').insert({
     user_id: userId,
     type: 'system',
-    title: 'Bem-vindo à Poker School!',
+    title: 'Bem-vindo ao gabrielfpoker!',
     message: 'Seu acesso foi liberado. Comece a estudar agora.',
     action_url: '/dashboard',
   })

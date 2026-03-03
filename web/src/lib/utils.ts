@@ -5,12 +5,13 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Formata centavos para reais: 10050 → "R$ 100,50"
-export function formatCurrency(cents: number, currency = 'BRL'): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency,
-  }).format(cents / 100)
+// Formata centavos para dólar por padrão: 10050 → "$100.50"
+export function formatCurrency(cents: number, currency = 'USD'): string {
+  if (currency === 'USD') {
+    const val = cents / 100
+    return (val >= 0 ? '$' : '-$') + Math.abs(val).toFixed(2)
+  }
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(cents / 100)
 }
 
 // Formata minutos para "2h 30min"

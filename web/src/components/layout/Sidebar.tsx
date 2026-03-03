@@ -81,7 +81,7 @@ export default function Sidebar({ role, streak = 0, xp = 0 }: SidebarProps) {
           <span className="font-display text-[15px] font-black tracking-[0.18em] text-[var(--gold)]">poker</span>
         </div>
         <p className="text-[9px] tracking-[0.25em] text-[var(--text-muted)] uppercase mt-1 font-medium">
-          Pro Members Area
+          Mentoria Evolution
         </p>
       </Link>
 

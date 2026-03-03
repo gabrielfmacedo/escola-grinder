@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Replayer · Poker School',
+  title: 'Replayer · gabrielfpoker',
   description: 'O melhor replayer de mãos de poker do mercado. Analise, compartilhe e evolua.',
 }
 
@@ -14,7 +14,7 @@ export default function ReplayerLayout({ children }: { children: React.ReactNode
           <a href="/replayer" className="flex items-center gap-2 group">
             <span className="text-2xl">♠</span>
             <span className="font-bold tracking-tight">
-              Poker<span className="text-emerald-400">School</span>
+              gabrielf<span className="text-emerald-400">poker</span>
               <span className="text-white/40 font-normal ml-2 text-sm">Replayer</span>
             </span>
           </a>
