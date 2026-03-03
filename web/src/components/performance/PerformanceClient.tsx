@@ -385,7 +385,7 @@ export default function PerformanceClient({
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                <Tooltip formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
                   {byPlatformFull.map((r, i) => (
                     <Cell key={i} fill={r.profit >= 0 ? 'var(--green)' : 'var(--red)'} fillOpacity={0.8} />
@@ -402,7 +402,7 @@ export default function PerformanceClient({
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                  <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                  <Tooltip formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
                   <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
                     {byDayOfWeek.map((r, i) => (
                       <Cell key={i} fill={r.profit >= 0 ? 'var(--cyan)' : 'var(--red)'} fillOpacity={0.7} />
