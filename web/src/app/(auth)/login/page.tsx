@@ -91,11 +91,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="font-display text-3xl font-black mb-1">
-            <span className="text-[var(--gold)]">POKER</span>
-            <span className="text-[var(--cyan)]">.SCHOOL</span>
+          <div className="font-display text-3xl font-black mb-1 tracking-[0.12em]">
+            <span className="text-white">gabrielf</span>
+            <span className="text-[var(--gold)]">poker</span>
           </div>
-          <p className="text-[var(--text-dim)] text-sm">Entre na sua conta</p>
+          <p className="text-[9px] tracking-[0.25em] text-[var(--text-muted)] uppercase font-medium mt-1">
+            Mentoria Evolution
+          </p>
         </div>
 
         <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-6">
