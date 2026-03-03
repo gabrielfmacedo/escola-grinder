@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { GameType } from '@/lib/supabase/types'
-import { Monitor, MapPin, Trophy } from 'lucide-react'
+import { Monitor, MapPin, Trophy, Crosshair } from 'lucide-react'
 
 interface Platform { id: string; name: string }
 
@@ -67,6 +67,7 @@ export default function TournamentForm({
     position: '',
     notes: '',
     itm: false,
+    is_pko: false,
   })
 
   // Auto-check ITM when prize > 0
@@ -109,6 +110,7 @@ export default function TournamentForm({
         notes: form.notes || null,
         grind_session_id: grindSessionId ?? null,
         itm: form.itm,
+        is_pko: form.is_pko,
       }),
     })
 
@@ -220,26 +222,48 @@ export default function TournamentForm({
         </Field>
       </div>
 
-      {/* ITM */}
-      <button
-        type="button"
-        onClick={() => setForm(f => ({ ...f, itm: !f.itm }))}
-        className={cn(
-          'flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors w-full',
-          form.itm
-            ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
-            : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
-        )}
-      >
-        <Trophy size={14} />
-        <span>Fiquei ITM (In The Money)</span>
-        <div className={cn(
-          'ml-auto w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
-          form.itm ? 'bg-[var(--gold)] border-[var(--gold)]' : 'border-[var(--border)]'
-        )}>
-          {form.itm && <div className="w-2 h-2 rounded-sm bg-black" />}
-        </div>
-      </button>
+      {/* PKO + ITM */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setForm(f => ({ ...f, is_pko: !f.is_pko }))}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors',
+            form.is_pko
+              ? 'bg-[var(--cyan)]/10 border-[var(--cyan)] text-[var(--cyan)]'
+              : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
+          )}
+        >
+          <Crosshair size={14} />
+          <span>PKO / Bounty</span>
+          <div className={cn(
+            'ml-auto w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+            form.is_pko ? 'bg-[var(--cyan)] border-[var(--cyan)]' : 'border-[var(--border)]'
+          )}>
+            {form.is_pko && <div className="w-2 h-2 rounded-sm bg-black" />}
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setForm(f => ({ ...f, itm: !f.itm }))}
+          className={cn(
+            'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors',
+            form.itm
+              ? 'bg-[var(--gold)]/10 border-[var(--gold)] text-[var(--gold)]'
+              : 'border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--border-hi)]'
+          )}
+        >
+          <Trophy size={14} />
+          <span>ITM</span>
+          <div className={cn(
+            'ml-auto w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors',
+            form.itm ? 'bg-[var(--gold)] border-[var(--gold)]' : 'border-[var(--border)]'
+          )}>
+            {form.itm && <div className="w-2 h-2 rounded-sm bg-black" />}
+          </div>
+        </button>
+      </div>
 
       {/* Preview do resultado */}
       {form.buy_in && (

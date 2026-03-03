@@ -289,13 +289,15 @@ export default function DashboardClient({
           color={totalSaldo >= 0 ? 'var(--green)' : 'var(--red)'}
           sub="banca atual"
           note="* não afetado pelo período"
+          highlight={totalSaldo >= 0 ? 'green' : 'red'}
           onClick={() => setModal('saldo')}
         />
         <MetricCard
           label="ROI"
           value={(roi >= 0 ? '+' : '') + roi.toFixed(1) + '%'}
-          color={roi >= 0 ? 'var(--cyan)' : 'var(--red)'}
+          color={roi >= 0 ? 'var(--green)' : 'var(--red)'}
           sub="retorno s/ investido"
+          highlight={roi >= 0 ? 'green' : 'red'}
           onClick={() => setModal('roi')}
         />
         <MetricCard
@@ -493,7 +495,7 @@ export default function DashboardClient({
 }
 
 function MetricCard({
-  label, value, color, sub, note, onClick,
+  label, value, color, sub, note, onClick, highlight,
 }: {
   label: string
   value: string
@@ -501,11 +503,19 @@ function MetricCard({
   sub?: string
   note?: string
   onClick?: () => void
+  highlight?: 'green' | 'red'
 }) {
   return (
     <button
       onClick={onClick}
-      className="relative overflow-hidden bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 text-left group hover:border-opacity-60 transition-colors w-full"
+      className={cn(
+        'relative overflow-hidden rounded-xl p-4 text-left group hover:border-opacity-60 transition-colors w-full',
+        highlight === 'green'
+          ? 'bg-[var(--green)]/8 border border-[var(--green)]/40'
+          : highlight === 'red'
+          ? 'bg-[var(--red)]/8 border border-[var(--red)]/40'
+          : 'bg-[var(--surface-1)] border border-[var(--border)]'
+      )}
     >
       <div
         className="pointer-events-none absolute -top-4 -right-4 w-20 h-20 rounded-full blur-2xl opacity-[0.12] group-hover:opacity-20 transition-opacity"

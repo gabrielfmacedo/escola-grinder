@@ -93,19 +93,25 @@ function BreakdownModal({ title, rows, onClose }: {
   )
 }
 
-function MetricCard({ label, value, sub, positive, onClick }: {
+function MetricCard({ label, value, sub, positive, onClick, highlighted }: {
   label: string
   value: string
   sub?: string
   positive?: boolean
   onClick?: () => void
+  highlighted?: boolean
 }) {
   const valueColor = positive === true ? 'var(--green)' : positive === false ? 'var(--red)' : 'var(--foreground)'
   return (
     <button
       onClick={onClick}
       className={cn(
-        'relative group text-left bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 transition-all w-full',
+        'relative group text-left rounded-xl p-4 transition-all w-full',
+        highlighted && positive === true
+          ? 'bg-[var(--green)]/8 border border-[var(--green)]/40'
+          : highlighted && positive === false
+          ? 'bg-[var(--red)]/8 border border-[var(--red)]/40'
+          : 'bg-[var(--surface-1)] border border-[var(--border)]',
         onClick && 'hover:border-[var(--border-hi)] cursor-pointer'
       )}
     >
@@ -467,12 +473,14 @@ export default function PerformanceClient({
           value={formatCurrency(totalSaldo)}
           sub="banca atual"
           positive={totalSaldo >= 0}
+          highlighted
           onClick={() => setModal('saldo')}
         />
         <MetricCard
           label="ROI"
           value={`${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`}
           positive={roi >= 0}
+          highlighted
           onClick={() => setModal('roi')}
         />
         <MetricCard

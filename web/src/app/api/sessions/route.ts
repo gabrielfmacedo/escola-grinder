@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     notes,
     grind_session_id,
     itm,
+    is_pko,
   } = body
 
   // Validate required fields
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       notes: (notes as string) ?? null,
       grind_session_id: (grind_session_id as string) ?? null,
       itm: (itm as boolean) ?? false,
+      is_pko: (is_pko as boolean) ?? false,
     })
     .select('id')
     .single()
