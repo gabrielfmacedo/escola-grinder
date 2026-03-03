@@ -645,7 +645,7 @@ export default function PerformanceClient({
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                     <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                     <Tooltip
-                      formatter={(v: number | string) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v, 'Lucro']}
+                      formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']}
                       contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                     />
                     <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
@@ -667,7 +667,7 @@ export default function PerformanceClient({
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                     <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                     <Tooltip
-                      formatter={(v: number | string) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v, 'Lucro']}
+                      formatter={(v: number | string | undefined) => [typeof v === 'number' ? `$${v.toFixed(2)}` : v ?? '—', 'Lucro']}
                       contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                     />
                     <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
