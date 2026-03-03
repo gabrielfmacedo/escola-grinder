@@ -20,6 +20,7 @@ import {
   Megaphone,
   Wallet,
   Lightbulb,
+  History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase/types'
@@ -38,6 +39,7 @@ const NAV_PRIMARY: NavItem[] = [
   { label: 'Performance', href: '/performance', icon: TrendingUp },
   { label: 'Banca',       href: '/banca',       icon: Wallet },
   { label: 'Modo Grind',  href: '/grind',       icon: Zap },
+  { label: 'Sessões',     href: '/sessoes',     icon: History },
   { label: 'Calendário',  href: '/calendario',  icon: CalendarDays },
   { label: 'Ranking',     href: '/ranking',     icon: Trophy },
 ]

@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Rotas que exigem login
-const PROTECTED_ROUTES = ['/dashboard', '/performance', '/banca', '/grind', '/cursos', '/conteudos', '/calendario', '/trilhas', '/mentoria', '/ranking', '/notificacoes', '/configuracoes', '/admin']
+const PROTECTED_ROUTES = ['/dashboard', '/performance', '/banca', '/grind', '/cursos', '/conteudos', '/calendario', '/trilhas', '/mentoria', '/ranking', '/notificacoes', '/configuracoes', '/admin', '/sessoes']
 // Rotas apenas para quem NÃO está logado
 const AUTH_ROUTES = ['/login', '/cadastro']
 // Rotas públicas que não precisam de Supabase (evita erro com .env não configurado)

@@ -287,10 +287,10 @@ export default function GrindSession({
                   <CalendarCheck size={14} /> Fechar Caixa
                 </button>
                 <button
-                  onClick={() => { router.push('/performance'); router.refresh() }}
+                  onClick={() => { router.push('/sessoes'); router.refresh() }}
                   className="flex-1 py-2.5 rounded-xl bg-[var(--cyan)] hover:bg-[var(--cyan-light)] text-white font-bold text-sm transition-colors"
                 >
-                  Ver Performance
+                  Ver Sessões
                 </button>
               </div>
             </div>

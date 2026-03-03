@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { formatDuration } from '@/lib/utils'
-import { Plus, Bell, ChevronRight } from 'lucide-react'
+import { Plus, Bell, ChevronRight, AlertTriangle } from 'lucide-react'
 import SeedButton from '@/components/dev/SeedButton'
 import DashboardClient from '@/components/dashboard/DashboardClient'
 
@@ -32,6 +32,14 @@ export default async function DashboardPage() {
       .limit(5),
     supabase.from('lesson_progress').select('lesson_id').eq('user_id', user!.id).eq('completed', true),
   ])
+
+  // Pending day-close check
+  const today = new Date().toISOString().split('T')[0]
+  const [{ data: todaySessions }, { data: todayClose }] = await Promise.all([
+    supabase.from('poker_sessions').select('id').eq('user_id', user!.id).eq('played_at', today).limit(1),
+    supabase.from('day_closes').select('id').eq('user_id', user!.id).eq('date', today).maybeSingle(),
+  ])
+  const hasPendingClose = (todaySessions?.length ?? 0) > 0 && !todayClose
 
   // Calcular saldo por plataforma (bankroll_entries + lucro de sessões)
   const platformBalanceMap: Record<string, number> = {}
@@ -167,6 +175,18 @@ export default async function DashboardPage() {
             {unreadCount} notificações não lidas
           </p>
           <ChevronRight size={14} className="text-[var(--cyan)]/50 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+      )}
+
+      {/* Aviso de caixa do dia pendente */}
+      {hasPendingClose && (
+        <Link href="/banca"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--gold)]/8 border border-[var(--gold)]/30 hover:bg-[var(--gold)]/12 transition-colors group">
+          <AlertTriangle size={15} className="text-[var(--gold)] shrink-0" />
+          <p className="text-sm text-[var(--gold)] font-semibold flex-1">
+            Você jogou hoje e ainda não fechou o caixa do dia.
+          </p>
+          <ChevronRight size={14} className="text-[var(--gold)]/50 group-hover:translate-x-0.5 transition-transform" />
         </Link>
       )}
 
