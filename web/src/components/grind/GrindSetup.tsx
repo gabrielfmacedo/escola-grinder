@@ -16,7 +16,7 @@ const TOURNAMENT_SUGGESTIONS = [
   'Sunday Special', 'Bounty Builder', 'Mystery Bounty',
 ]
 
-export default function GrindSetup({ platforms }: { platforms: Platform[] }) {
+export default function GrindSetup({ platforms, platformBalances = {} }: { platforms: Platform[]; platformBalances?: Record<string, number> }) {
   const router = useRouter()
   const [type, setType] = useState<'single' | 'mixed'>('single')
   const [platformId, setPlatformId] = useState('')
@@ -118,6 +118,14 @@ export default function GrindSetup({ platforms }: { platforms: Platform[] }) {
               {type === 'mixed' && <option value="">— Por torneio —</option>}
               {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
+            {platformId && platformBalances[platformId] !== undefined && (
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                Saldo em {platforms.find(p => p.id === platformId)?.name ?? 'sala'}:{' '}
+                <span className={platformBalances[platformId] >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'}>
+                  {platformBalances[platformId] >= 0 ? '' : '-'}${Math.abs(platformBalances[platformId] / 100).toFixed(2)}
+                </span>
+              </p>
+            )}
           </div>
           {type === 'single' && (
             <div className="flex flex-col gap-1.5">

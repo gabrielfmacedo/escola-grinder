@@ -1,11 +1,12 @@
 'use client'
 
-import { ResponsiveContainer, AreaChart, Area, Tooltip } from 'recharts'
+import { ResponsiveContainer, AreaChart, Area, Tooltip, ReferenceLine } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 
 interface MiniPnLChartProps {
   data: { value: number }[]
   positive: boolean
+  milestones?: number[]
 }
 
 function CustomTooltip({ active, payload }: { active?: boolean; payload?: { value: number }[] }) {
@@ -20,7 +21,7 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { valu
   )
 }
 
-export default function MiniPnLChart({ data, positive }: MiniPnLChartProps) {
+export default function MiniPnLChart({ data, positive, milestones = [] }: MiniPnLChartProps) {
   const color = positive ? 'var(--green)' : 'var(--red)'
   return (
     <ResponsiveContainer width="100%" height={100}>
@@ -32,6 +33,9 @@ export default function MiniPnLChart({ data, positive }: MiniPnLChartProps) {
           </linearGradient>
         </defs>
         <Tooltip content={<CustomTooltip />} />
+        {milestones.map(m => (
+          <ReferenceLine key={m} y={m} stroke="var(--gold)" strokeDasharray="3 3" strokeOpacity={0.5} />
+        ))}
         <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2}
           fill="url(#miniGrad)" dot={false}
           activeDot={{ r: 3, fill: color, stroke: 'var(--background)' }} />

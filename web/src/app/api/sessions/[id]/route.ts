@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Corpo inválido' }, { status: 400 })
   }
 
-  const allowed = ['cash_out_cents', 'notes', 'position', 'itm', 'tournament_name', 'rakeback_cents']
+  const allowed = ['cash_out_cents', 'buy_in_cents', 'entries', 'notes', 'position', 'itm', 'tournament_name', 'rakeback_cents', 'total_players']
   const updates: Record<string, unknown> = {}
   for (const key of allowed) {
     if (key in body) updates[key] = body[key]

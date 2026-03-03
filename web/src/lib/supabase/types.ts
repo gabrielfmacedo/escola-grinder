@@ -11,7 +11,8 @@ export type GameType = 'MTT' | 'Cash' | 'Spin&Go' | 'SNG' | 'Outros'
 export type GrindSessionType = 'single' | 'mixed'
 export type EventType = 'live_class' | 'content_release' | 'tournament' | 'other'
 export type PreferredCurrency = 'usd' | 'brl'
-export type BankrollEntryType = 'initial' | 'deposit' | 'withdrawal' | 'rakeback' | 'adjustment'
+export type BankrollEntryType = 'initial' | 'deposit' | 'withdrawal' | 'rakeback' | 'adjustment' | 'transfer'
+export type SuggestionStatus = 'pending' | 'reviewing' | 'approved' | 'implemented' | 'rejected'
 
 export type Database = {
   public: {
@@ -409,6 +410,7 @@ export type Database = {
           is_live: boolean | null
           grind_session_id: string | null
           itm: boolean | null
+          total_players: number | null
           created_at: string
           updated_at: string
         }
@@ -429,6 +431,7 @@ export type Database = {
           is_live?: boolean | null
           grind_session_id?: string | null
           itm?: boolean | null
+          total_players?: number | null
         }
         Update: Partial<Database['public']['Tables']['poker_sessions']['Insert']>
         Relationships: [
@@ -623,6 +626,7 @@ export type Database = {
           id: string
           user_id: string
           platform_id: string | null
+          to_platform_id: string | null
           type: BankrollEntryType
           amount_cents: number
           date: string
@@ -634,6 +638,7 @@ export type Database = {
           type: BankrollEntryType
           amount_cents: number
           platform_id?: string | null
+          to_platform_id?: string | null
           date?: string
           notes?: string | null
         }
@@ -696,6 +701,29 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      suggestions: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          body: string
+          status: SuggestionStatus
+          admin_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          title: string
+          body: string
+          status?: SuggestionStatus
+          admin_notes?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['suggestions']['Insert']>
+        Relationships: [
+          { foreignKeyName: 'suggestions_user_id_fkey'; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] }
+        ]
+      }
     }
     Views: {
       poker_session_results: {
@@ -718,6 +746,7 @@ export type Database = {
           is_live: boolean | null
           grind_session_id: string | null
           itm: boolean | null
+          total_players: number | null
           profit_cents: number
           roi_percent: number
           created_at: string

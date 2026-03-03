@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
   if (authError || !user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const body = await req.json()
-  const { type, amount_cents, platform_id, date, notes } = body
+  const { type, amount_cents, platform_id, to_platform_id, date, notes } = body
 
-  const validTypes: BankrollEntryType[] = ['initial', 'deposit', 'withdrawal', 'rakeback', 'adjustment']
+  const validTypes: BankrollEntryType[] = ['initial', 'deposit', 'withdrawal', 'rakeback', 'adjustment', 'transfer']
   if (!validTypes.includes(type)) return NextResponse.json({ error: 'Tipo inválido' }, { status: 400 })
   if (typeof amount_cents !== 'number' || amount_cents === 0) return NextResponse.json({ error: 'Valor inválido' }, { status: 400 })
 
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
     type: type as BankrollEntryType,
     amount_cents,
     platform_id: (platform_id as string) || null,
+    to_platform_id: (to_platform_id as string) || null,
     date: (date as string) ?? new Date().toISOString().split('T')[0],
     notes: (notes as string) || null,
   }).select('id').single()

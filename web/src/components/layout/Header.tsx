@@ -25,6 +25,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/anuncios':       'Anúncios',
   '/admin/performance':    'Performance Admin',
   '/admin/grupos':         'Grupos de Jogadores',
+  '/admin/sugestoes':      'Sugestões',
   '/onboarding':           'Bem-vindo!',
 }
 

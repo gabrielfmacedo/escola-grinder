@@ -6,11 +6,12 @@ import type { BankrollEntryType } from '@/lib/supabase/types'
 import { X } from 'lucide-react'
 
 const TYPES: { value: BankrollEntryType; label: string; desc: string }[] = [
-  { value: 'initial',    label: 'Banca Inicial', desc: 'Saldo que já tinha antes de começar a registrar' },
-  { value: 'deposit',    label: 'Depósito',      desc: 'Novo aporte na banca' },
-  { value: 'withdrawal', label: 'Saque',         desc: 'Valor retirado da banca' },
-  { value: 'rakeback',   label: 'Rakeback',      desc: 'Rakeback recebido da plataforma' },
-  { value: 'adjustment', label: 'Ajuste',        desc: 'Correção manual de saldo' },
+  { value: 'initial',    label: 'Banca Inicial',  desc: 'Saldo que já tinha antes de começar a registrar' },
+  { value: 'deposit',    label: 'Reload',         desc: 'Novo aporte na banca' },
+  { value: 'withdrawal', label: 'Sangria',        desc: 'Valor retirado da banca' },
+  { value: 'transfer',   label: 'Transferência',  desc: 'Mover saldo entre plataformas' },
+  { value: 'rakeback',   label: 'Rakeback',       desc: 'Rakeback recebido da plataforma' },
+  { value: 'adjustment', label: 'Ajuste',         desc: 'Correção manual de saldo' },
 ]
 
 interface Platform { id: string; name: string }
@@ -29,6 +30,7 @@ export default function BancaEntryModal({
   const [type, setType] = useState<BankrollEntryType>(defaultType)
   const [amount, setAmount] = useState('')
   const [platformId, setPlatformId] = useState('')
+  const [toPlatformId, setToPlatformId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
@@ -44,7 +46,15 @@ export default function BancaEntryModal({
       return
     }
 
-    // Withdrawals are stored as positive values; sign is applied by the UI/API logic
+    if (type === 'transfer' && (!platformId || !toPlatformId)) {
+      setError('Selecione a plataforma de origem e destino')
+      return
+    }
+    if (type === 'transfer' && platformId === toPlatformId) {
+      setError('Plataformas de origem e destino devem ser diferentes')
+      return
+    }
+
     const finalCents = type === 'withdrawal' ? Math.abs(amountCents) : amountCents
 
     setLoading(true)
@@ -55,6 +65,7 @@ export default function BancaEntryModal({
         type,
         amount_cents: finalCents,
         platform_id: platformId || null,
+        to_platform_id: type === 'transfer' ? (toPlatformId || null) : null,
         date,
         notes: notes || null,
       }),
@@ -126,20 +137,36 @@ export default function BancaEntryModal({
             />
           </div>
 
-          {/* Platform (optional) */}
-          {platforms.length > 0 && (
+          {/* Platform */}
+          {platforms.length > 0 && type === 'transfer' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-[var(--text-muted)] font-medium">Origem <span className="text-[var(--red)]">*</span></label>
+                <select value={platformId} onChange={e => setPlatformId(e.target.value)}
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--cyan)]/60 [&_option]:bg-[var(--surface-2)]">
+                  <option value="">— Selecionar —</option>
+                  {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-[var(--text-muted)] font-medium">Destino <span className="text-[var(--red)]">*</span></label>
+                <select value={toPlatformId} onChange={e => setToPlatformId(e.target.value)}
+                  className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--cyan)]/60 [&_option]:bg-[var(--surface-2)]">
+                  <option value="">— Selecionar —</option>
+                  {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+          ) : platforms.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-[var(--text-muted)] font-medium">Plataforma (opcional)</label>
-              <select
-                value={platformId}
-                onChange={e => setPlatformId(e.target.value)}
-                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--cyan)]/60 [&_option]:bg-[var(--surface-2)]"
-              >
+              <select value={platformId} onChange={e => setPlatformId(e.target.value)}
+                className="w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2.5 text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--cyan)]/60 [&_option]:bg-[var(--surface-2)]">
                 <option value="">— Global (sem plataforma) —</option>
                 {platforms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
-          )}
+          ) : null}
 
           {/* Date */}
           <div className="flex flex-col gap-1.5">

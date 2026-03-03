@@ -20,10 +20,11 @@ function fmt(cents: number, sign = false): string {
 
 const TYPE_LABELS: Record<BankrollEntryType, string> = {
   initial: 'Banca Inicial',
-  deposit: 'Depósito',
-  withdrawal: 'Saque',
+  deposit: 'Reload',
+  withdrawal: 'Sangria',
   rakeback: 'Rakeback',
   adjustment: 'Ajuste',
+  transfer: 'Transferência',
 }
 
 const TYPE_COLOR: Record<BankrollEntryType, string> = {
@@ -32,6 +33,7 @@ const TYPE_COLOR: Record<BankrollEntryType, string> = {
   withdrawal: 'var(--red)',
   rakeback: 'var(--gold)',
   adjustment: 'var(--text-muted)',
+  transfer: '#a78bfa',
 }
 
 export default function BancaClient({
@@ -129,16 +131,22 @@ export default function BancaClient({
             </button>
           )}
           <button
+            onClick={() => openEntry('transfer')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-500/10 border border-purple-500/40 text-purple-400 text-sm font-semibold hover:bg-purple-500/20 transition-colors"
+          >
+            <ArrowDownLeft size={14} /> Transferir
+          </button>
+          <button
             onClick={() => openEntry('deposit')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--green)]/10 border border-[var(--green)]/40 text-[var(--green)] text-sm font-semibold hover:bg-[var(--green)]/20 transition-colors"
           >
-            <ArrowDownLeft size={14} /> Depósito
+            <ArrowDownLeft size={14} /> Reload
           </button>
           <button
             onClick={() => openEntry('withdrawal')}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--red)]/10 border border-[var(--red)]/40 text-[var(--red)] text-sm font-semibold hover:bg-[var(--red)]/20 transition-colors"
           >
-            <ArrowUpRight size={14} /> Saque
+            <ArrowUpRight size={14} /> Sangria
           </button>
         </div>
       </div>
@@ -297,8 +305,9 @@ function MetricCard({ label, value, icon, color, sub, highlight }: {
 }) {
   return (
     <div className={cn(
-      'content-card flex flex-col gap-2',
-      highlight && 'ring-1 ring-[var(--cyan)]/20'
+      'flex flex-col gap-2 rounded-2xl p-4 border backdrop-blur-sm',
+      'bg-white/[0.04] border-white/[0.08]',
+      highlight && 'ring-1 ring-[var(--cyan)]/30 bg-white/[0.07]'
     )}>
       <div className="flex items-center justify-between">
         <span className="text-xs text-[var(--text-muted)] font-medium">{label}</span>
@@ -314,6 +323,7 @@ function EntryRow({ entry, platforms, onDelete }: { entry: Entry; platforms: Pla
   const [deleting, setDeleting] = useState(false)
 
   const platform = platforms.find(p => p.id === entry.platform_id)
+  const toPlatform = platforms.find(p => p.id === (entry as Entry & { to_platform_id?: string | null }).to_platform_id)
   const color = TYPE_COLOR[entry.type]
   const label = TYPE_LABELS[entry.type]
   const isOut = entry.type === 'withdrawal' || (entry.type === 'adjustment' && entry.amount_cents < 0)
@@ -338,7 +348,9 @@ function EntryRow({ entry, platforms, onDelete }: { entry: Entry; platforms: Pla
         </span>
         <div>
           <p className="text-sm text-[var(--foreground)]">
-            {platform ? platform.name : 'Global'}
+            {entry.type === 'transfer'
+              ? `${platform?.name ?? 'Global'} → ${toPlatform?.name ?? '?'}`
+              : (platform ? platform.name : 'Global')}
             {entry.notes && <span className="text-[var(--text-dim)] ml-1.5 text-xs">{entry.notes}</span>}
           </p>
           <p className="text-xs text-[var(--text-muted)]">{entry.date}</p>

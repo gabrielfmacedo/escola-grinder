@@ -19,9 +19,11 @@ import {
   CalendarDays,
   Megaphone,
   Wallet,
+  Lightbulb,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase/types'
+import SugestaoButton from '@/components/suggestions/SugestaoButton'
 
 interface NavItem {
   label: string
@@ -47,6 +49,7 @@ const NAV_ADMIN: NavItem[] = [
   { label: 'Notif. Admin', href: '/admin/notificacoes', icon: Send,       roles: ['instructor', 'admin'] },
   { label: 'Anúncios',     href: '/admin/anuncios',     icon: Megaphone,  roles: ['instructor', 'admin'] },
   { label: 'Performance',  href: '/admin/performance',  icon: BarChart2,  roles: ['admin'] },
+  { label: 'Sugestões',    href: '/admin/sugestoes',    icon: Lightbulb,  roles: ['instructor', 'admin'] },
 ]
 
 const NAV_SECONDARY: NavItem[] = [
@@ -101,6 +104,7 @@ export default function Sidebar({ role, streak = 0, xp = 0 }: SidebarProps) {
         {filterRole(NAV_SECONDARY).map(item => (
           <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
+        <SugestaoButton />
       </nav>
 
       {/* ── Streak + XP ──────────────────────── */}

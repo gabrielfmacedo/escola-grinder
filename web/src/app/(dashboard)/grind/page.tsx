@@ -31,10 +31,25 @@ export default async function GrindPage() {
 
   if (active) redirect(`/grind/${active.id}`)
 
-  const { data: platforms } = await supabase
-    .from('poker_platforms')
-    .select('id, name')
-    .eq('is_active', true)
+  const [{ data: platforms }, { data: entries }, { data: sessions }] = await Promise.all([
+    supabase.from('poker_platforms').select('id, name').eq('is_active', true),
+    supabase.from('bankroll_entries').select('platform_id, type, amount_cents').eq('user_id', user.id),
+    supabase.from('poker_session_results').select('platform_id, profit_cents, rakeback_cents').eq('user_id', user.id),
+  ])
 
-  return <GrindSetup platforms={sortPlatforms(platforms ?? [])} />
+  // Calculate balance per platform
+  const balanceMap: Record<string, number> = {}
+  for (const e of entries ?? []) {
+    if (!e.platform_id) continue
+    if (!balanceMap[e.platform_id]) balanceMap[e.platform_id] = 0
+    if (e.type === 'initial' || e.type === 'deposit') balanceMap[e.platform_id] += e.amount_cents
+    if (e.type === 'withdrawal') balanceMap[e.platform_id] -= Math.abs(e.amount_cents)
+  }
+  for (const s of sessions ?? []) {
+    if (!s.platform_id) continue
+    if (!balanceMap[s.platform_id]) balanceMap[s.platform_id] = 0
+    balanceMap[s.platform_id] += s.profit_cents + (s.rakeback_cents ?? 0)
+  }
+
+  return <GrindSetup platforms={sortPlatforms(platforms ?? [])} platformBalances={balanceMap} />
 }

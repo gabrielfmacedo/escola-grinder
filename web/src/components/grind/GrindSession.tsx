@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, Plus, TrendingUp, TrendingDown, DollarSign, Target, XCircle, Loader2, CalendarCheck } from 'lucide-react'
+import { Clock, Plus, TrendingUp, TrendingDown, DollarSign, Target, XCircle, Loader2, CalendarCheck, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TournamentForm from '@/components/performance/TournamentForm'
 import GrindSingleForm from '@/components/grind/GrindSingleForm'
+import EditTournamentModal from '@/components/grind/EditTournamentModal'
 import type { GameType } from '@/lib/supabase/types'
 
 interface GrindTournament {
@@ -63,6 +64,7 @@ export default function GrindSession({
   const [showEndConfirm, setShowEndConfirm] = useState(false)
   const [sessionEnded, setSessionEnded] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  const [editingTournament, setEditingTournament] = useState<GrindTournament | null>(null)
 
   // Live timer
   useEffect(() => {
@@ -209,7 +211,7 @@ export default function GrindSession({
               const profit = t.cash_out_cents - t.buy_in_cents
               return (
                 <div key={t.id ?? i}
-                  className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)]">
+                  className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] group">
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold text-white truncate">
                       {t.tournament_name ?? t.game_type ?? 'Torneio'}
@@ -220,11 +222,19 @@ export default function GrindSession({
                       {t.position ? ` · ${t.position}º lugar` : ''}
                     </p>
                   </div>
-                  <div className="text-right shrink-0 ml-3">
-                    <p className={cn('text-xs font-bold', profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
-                      {profit >= 0 ? '+' : ''}{formatCents(profit)}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-muted)]">{formatCents(t.buy_in_cents)} buy-in</p>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <button
+                      onClick={() => setEditingTournament(t)}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-white transition-all"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <div className="text-right">
+                      <p className={cn('text-xs font-bold', profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                        {profit >= 0 ? '+' : ''}{formatCents(profit)}
+                      </p>
+                      <p className="text-[11px] text-[var(--text-muted)]">{formatCents(t.buy_in_cents)} buy-in</p>
+                    </div>
                   </div>
                 </div>
               )
@@ -314,6 +324,17 @@ export default function GrindSession({
             Encerrar Sessão
           </button>
         </div>
+      )}
+
+      {editingTournament && (
+        <EditTournamentModal
+          tournament={editingTournament}
+          onSave={(updated) => {
+            setTournaments(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t))
+            setEditingTournament(null)
+          }}
+          onClose={() => setEditingTournament(null)}
+        />
       )}
     </div>
   )

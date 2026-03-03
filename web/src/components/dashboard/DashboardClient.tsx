@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { TrendingUp, TrendingDown, Target, Layers, ChevronRight, DollarSign, Zap, CalendarDays } from 'lucide-react'
+import { TrendingUp, TrendingDown, Target, Layers, ChevronRight, DollarSign, Zap, CalendarDays, BookOpen, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MiniPnLChart from '@/components/banca/MiniPnLChart'
 import type { Database } from '@/lib/supabase/types'
@@ -10,6 +10,7 @@ import type { Database } from '@/lib/supabase/types'
 type Session = Database['public']['Views']['poker_session_results']['Row']
 type Course = { id: string; title: string; slug: string; required_plan: string }
 type UpcomingEvent = { id: string; title: string; starts_at: string; type: string }
+type RecentLesson = { id: string; title: string; courseTitle: string; courseSlug: string }
 
 const PERIODS = [
   { label: '28 dias', days: 28 },
@@ -50,15 +51,18 @@ export default function DashboardClient({
   allSessions,
   courses,
   upcomingEvents = [],
+  recentLessons = [],
 }: {
   allSessions: Session[]
   courses: Course[]
   upcomingEvents?: UpcomingEvent[]
+  recentLessons?: RecentLesson[]
 }) {
   const [period, setPeriod] = useState(0) // index into PERIODS
   const [tab, setTab] = useState<Tab>('geral')
   const [currency, setCurrency] = useState<'usd' | 'brl'>('usd')
   const [breakdownTab, setBreakdownTab] = useState<'game' | 'day' | 'platform' | 'buyin'>('game')
+  const [breakdownModal, setBreakdownModal] = useState<'lucro' | 'roi' | null>(null)
 
   const hasLive = allSessions.some(s => s.is_live)
 
@@ -80,6 +84,11 @@ export default function DashboardClient({
   const profitPerSession = totalSessions > 0 ? totalProfit / totalSessions : 0
   const isProfitable = totalProfit >= 0
 
+  const uniqueDays = useMemo(() => new Set(filtered.map(s => s.played_at.slice(0, 10))).size, [filtered])
+  const avgBuyIn = totalSessions > 0 ? totalInvested / totalSessions : 0
+  const itmCount = filtered.filter(s => s.itm).length
+  const itmPct = totalSessions > 0 ? (itmCount / totalSessions) * 100 : 0
+
   // Cumulative chart
   const chartData = useMemo(() => {
     let cum = 0
@@ -87,6 +96,20 @@ export default function DashboardClient({
       .sort((a, b) => new Date(a.played_at).getTime() - new Date(b.played_at).getTime())
       .map(s => { cum += s.profit_cents; return { value: cum } })
   }, [filtered])
+
+  // Chart milestones (every $100 that the cumulative profit crosses)
+  const chartMilestones = useMemo(() => {
+    if (chartData.length < 2) return []
+    const values = chartData.map(d => d.value)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const step = 10000 // $100 in cents
+    const milestones: number[] = []
+    for (let m = Math.ceil(min / step) * step; m <= max; m += step) {
+      if (m !== 0) milestones.push(m)
+    }
+    return milestones.slice(0, 5) // max 5 lines
+  }, [chartData])
 
   // Breakdowns
   const byGameType = useMemo(() => {
@@ -115,12 +138,13 @@ export default function DashboardClient({
   }, [filtered])
 
   const byPlatform = useMemo(() => {
-    const map: Record<string, { sessions: number; profit: number }> = {}
+    const map: Record<string, { sessions: number; profit: number; invested: number }> = {}
     for (const s of filtered) {
       const k = s.platform_name ?? 'Outros'
-      if (!map[k]) map[k] = { sessions: 0, profit: 0 }
+      if (!map[k]) map[k] = { sessions: 0, profit: 0, invested: 0 }
       map[k].sessions++
       map[k].profit += s.profit_cents
+      map[k].invested += s.buy_in_cents
     }
     return Object.entries(map).sort((a, b) => b[1].sessions - a[1].sessions)
   }, [filtered])
@@ -213,6 +237,7 @@ export default function DashboardClient({
           accent={isProfitable ? 'var(--green)' : 'var(--red)'}
           icon={isProfitable ? TrendingUp : TrendingDown}
           sub={`${totalSessions} torneios`}
+          onClick={() => setBreakdownModal('lucro')}
         />
         <StatCard
           label="ROI"
@@ -221,6 +246,7 @@ export default function DashboardClient({
           accent={roi >= 0 ? 'var(--cyan)' : 'var(--red)'}
           icon={Target}
           sub="retorno sobre investido"
+          onClick={() => setBreakdownModal('roi')}
         />
         <StatCard
           label="Torneios"
@@ -239,6 +265,24 @@ export default function DashboardClient({
         />
       </div>
 
+      {/* ── Mini metric strip ──────────────────────────────────── */}
+      {totalSessions > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">Dias Jogados</p>
+            <p className="text-base font-black text-white">{uniqueDays}</p>
+          </div>
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">Buy-in Médio</p>
+            <p className="text-base font-black text-white">{centsToDisplay(avgBuyIn, currency)}</p>
+          </div>
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3 text-center">
+            <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-widest font-bold mb-1">% ITM</p>
+            <p className="text-base font-black text-[var(--gold)]">{itmPct.toFixed(0)}%</p>
+          </div>
+        </div>
+      )}
+
       {/* ── Corpo ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
@@ -253,7 +297,7 @@ export default function DashboardClient({
                   Ver performance →
                 </Link>
               </div>
-              <MiniPnLChart data={chartData} positive={isProfitable} />
+              <MiniPnLChart data={chartData} positive={isProfitable} milestones={chartMilestones} />
             </div>
           )}
 
@@ -397,6 +441,27 @@ export default function DashboardClient({
             </div>
           </div>
 
+          {/* Últimas Aulas Postadas */}
+          {recentLessons.length > 0 && (
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-bold text-white flex items-center gap-2">
+                  <BookOpen size={14} className="text-[var(--gold)]" /> Últimas Aulas
+                </p>
+                <Link href="/conteudos" className="text-xs text-[var(--cyan)] hover:underline font-medium">Ver todas →</Link>
+              </div>
+              <div className="space-y-2">
+                {recentLessons.map(l => (
+                  <Link key={l.id} href={`/cursos/${l.courseSlug}/aula/${l.id}`}
+                    className="block p-2.5 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--gold)]/30 transition-colors group">
+                    <p className="text-xs font-semibold text-white truncate group-hover:text-[var(--gold)] transition-colors">{l.title}</p>
+                    <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{l.courseTitle}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Acesso rápido */}
           <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
             <p className="text-sm font-bold text-white mb-3">Acesso rápido</p>
@@ -426,16 +491,77 @@ export default function DashboardClient({
           </div>
         </div>
       </div>
+
+      {/* ── StatsBreakdownModal ─────────────────────────────────── */}
+      {breakdownModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setBreakdownModal(null)}>
+          <div className="w-full max-w-sm bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <h3 className="font-bold text-white text-sm">
+                {breakdownModal === 'lucro' ? 'Lucro por Plataforma' : 'ROI por Tipo de Jogo'}
+              </h3>
+              <button onClick={() => setBreakdownModal(null)} className="text-[var(--text-dim)] hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-5 space-y-2">
+              {breakdownModal === 'lucro'
+                ? byPlatform.map(([name, v]) => (
+                    <div key={name} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{name}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{v.sessions} torneios</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={cn('text-sm font-bold', v.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                          {centsToDisplay(v.profit, currency)}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          ROI {v.invested > 0 ? ((v.profit / v.invested) * 100).toFixed(1) : '0.0'}%
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                : byGameType.map(([name, v]) => (
+                    <div key={name} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{name}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{v.sessions} torneios</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={cn('text-sm font-bold', v.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                          {centsToDisplay(v.profit, currency)}
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          ROI {v.invested > 0 ? ((v.profit / v.invested) * 100).toFixed(1) : '0.0'}%
+                        </p>
+                      </div>
+                    </div>
+                  ))
+              }
+              {!byPlatform.length && !byGameType.length && (
+                <p className="text-sm text-[var(--text-muted)] text-center py-4">Sem dados no período.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function StatCard({ label, value, positive, accent, icon: Icon, sub }: {
+function StatCard({ label, value, positive, accent, icon: Icon, sub, onClick }: {
   label: string; value: string; positive?: boolean
-  accent: string; icon: React.ElementType; sub?: string
+  accent: string; icon: React.ElementType; sub?: string; onClick?: () => void
 }) {
   return (
-    <div className="relative overflow-hidden bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 group hover:border-opacity-50 transition-colors">
+    <div
+      onClick={onClick}
+      className={cn(
+        'relative overflow-hidden bg-[var(--surface-1)] border border-[var(--border)] rounded-xl p-4 group hover:border-opacity-50 transition-colors',
+        onClick && 'cursor-pointer'
+      )}
+    >
       <div className="pointer-events-none absolute -top-4 -right-4 w-24 h-24 rounded-full blur-2xl opacity-15 transition-opacity group-hover:opacity-25"
         style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }} />
       <div className="absolute top-0 left-0 right-0 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
@@ -455,6 +581,7 @@ function StatCard({ label, value, positive, accent, icon: Icon, sub }: {
         {value}
       </p>
       {sub && <p className="text-[11px] text-[var(--text-muted)] mt-1">{sub}</p>}
+      {onClick && <p className="text-[10px] text-[var(--text-muted)] mt-1 opacity-0 group-hover:opacity-100 transition-opacity">ver detalhes →</p>}
     </div>
   )
 }

@@ -25,6 +25,7 @@ export default function GrindSingleForm({
   const [entries, setEntries] = useState('1')
   const [prize, setPrize] = useState('')
   const [position, setPosition] = useState('')
+  const [totalPlayers, setTotalPlayers] = useState('')
   const [itm, setItm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +67,7 @@ export default function GrindSingleForm({
         cash_out_cents: prizeCents,
         entries: entriesInt,
         position: position ? parseInt(position) : null,
+        total_players: totalPlayers ? parseInt(totalPlayers) : null,
         grind_session_id: grindSessionId,
         itm,
       }),
@@ -82,6 +84,7 @@ export default function GrindSingleForm({
     setEntries('1')
     setPrize('')
     setPosition('')
+    setTotalPlayers('')
     setItm(false)
     onSuccess()
   }
@@ -126,15 +129,27 @@ export default function GrindSingleForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-[var(--text-muted)] font-medium">Posição final (opcional)</label>
-        <input
-          type="number" min="1" step="1"
-          value={position}
-          onChange={e => setPosition(e.target.value)}
-          placeholder="Ex: 3"
-          className={inputCls}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-[var(--text-muted)] font-medium">Posição final</label>
+          <input
+            type="number" min="1" step="1"
+            value={position}
+            onChange={e => setPosition(e.target.value)}
+            placeholder="Ex: 3"
+            className={inputCls}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-[var(--text-muted)] font-medium">Total jogadores</label>
+          <input
+            type="number" min="1" step="1"
+            value={totalPlayers}
+            onChange={e => setTotalPlayers(e.target.value)}
+            placeholder="Ex: 450"
+            className={inputCls}
+          />
+        </div>
       </div>
 
       {/* ITM */}

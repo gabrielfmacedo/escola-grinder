@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Plus, TrendingUp, TrendingDown, Clock, Target, Layers, X, ChevronDown } from 'lucide-react'
+import { Plus, TrendingUp, TrendingDown, Clock, Target, Layers, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatDuration } from '@/lib/utils'
 import PnLChart from '@/components/banca/PnLChart'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts'
 
 interface Session {
   id: string
@@ -71,6 +72,8 @@ export default function PerformanceClient({
   const [minBuyIn, setMinBuyIn] = useState('')
   const [maxBuyIn, setMaxBuyIn] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [sortBy, setSortBy] = useState<'sessions' | 'profit' | 'roi'>('sessions')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const hasActiveFilter = periodIdx !== 0 || platformId !== '' || selectedDays.size > 0 || minBuyIn !== '' || maxBuyIn !== ''
 
@@ -125,6 +128,27 @@ export default function PerformanceClient({
   const roi = totalInvested > 0 ? ((totalProfit / totalInvested) * 100) : 0
   const hourlyRate = totalMinutes > 0 ? Math.round((totalProfit / totalMinutes) * 60) : 0
 
+  // Advanced metrics
+  const uniqueDays = useMemo(() => new Set(filteredSessions.map(s => s.played_at.slice(0, 10))).size, [filteredSessions])
+  const horasPorDia = uniqueDays > 0 ? (totalMinutes / 60) / uniqueDays : 0
+  const jogosPorDia = uniqueDays > 0 ? totalSessions / uniqueDays : 0
+  const avgBuyIn = totalSessions > 0 ? totalInvested / totalSessions : 0
+  const ganhoPerSession = totalSessions > 0 ? totalProfit / totalSessions : 0
+
+  const { diasUp, diasDown, bestDayProfit, worstDayProfit } = useMemo(() => {
+    const byDate: Record<string, number> = {}
+    for (const s of filteredSessions) {
+      const d = s.played_at.slice(0, 10)
+      byDate[d] = (byDate[d] ?? 0) + s.profit_cents
+    }
+    const profits = Object.values(byDate)
+    const diasUp = profits.filter(p => p > 0).length
+    const diasDown = profits.filter(p => p < 0).length
+    const bestDayProfit = profits.length > 0 ? Math.max(...profits) : 0
+    const worstDayProfit = profits.length > 0 ? Math.min(...profits) : 0
+    return { diasUp, diasDown, bestDayProfit, worstDayProfit }
+  }, [filteredSessions])
+
   const chartData = useMemo(() => {
     let cumulative = 0
     return [...filteredSessions]
@@ -150,6 +174,50 @@ export default function PerformanceClient({
     }
     return Object.entries(map).sort((a, b) => b[1].sessions - a[1].sessions)
   }, [filteredSessions])
+
+  const byPlatformFull = useMemo(() => {
+    const map: Record<string, { sessions: number; profit: number; invested: number }> = {}
+    for (const s of filteredSessions) {
+      const key = s.platform_name ?? 'Outros'
+      if (!map[key]) map[key] = { sessions: 0, profit: 0, invested: 0 }
+      map[key].sessions++
+      map[key].profit += s.profit_cents
+      map[key].invested += s.buy_in_cents
+    }
+    const rows = Object.entries(map).map(([name, v]) => ({
+      name,
+      sessions: v.sessions,
+      profit: v.profit,
+      invested: v.invested,
+      roi: v.invested > 0 ? (v.profit / v.invested) * 100 : 0,
+    }))
+    return rows.sort((a, b) => {
+      const dir = sortDir === 'desc' ? -1 : 1
+      if (sortBy === 'sessions') return (a.sessions - b.sessions) * dir
+      if (sortBy === 'roi') return (a.roi - b.roi) * dir
+      return (a.profit - b.profit) * dir
+    })
+  }, [filteredSessions, sortBy, sortDir])
+
+  const byDayOfWeek = useMemo(() => {
+    const map: Record<number, { sessions: number; profit: number }> = {}
+    for (const s of filteredSessions) {
+      const d = new Date(s.played_at).getDay()
+      if (!map[d]) map[d] = { sessions: 0, profit: 0 }
+      map[d].sessions++
+      map[d].profit += s.profit_cents
+    }
+    return DAYS.map((name, i) => ({
+      name,
+      sessions: map[i]?.sessions ?? 0,
+      profit: (map[i]?.profit ?? 0) / 100,
+    })).filter(d => d.sessions > 0)
+  }, [filteredSessions])
+
+  function toggleSort(col: typeof sortBy) {
+    if (sortBy === col) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortBy(col); setSortDir('desc') }
+  }
 
   const inputCls = cn(
     'w-full bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs',
@@ -258,7 +326,7 @@ export default function PerformanceClient({
         </div>
       )}
 
-      {/* Summary cards */}
+      {/* Summary cards — linha 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label="Lucro Total"
           value={(isProfitable ? '+' : '') + formatCurrency(totalProfit)}
@@ -275,11 +343,75 @@ export default function PerformanceClient({
           icon={Clock} />
       </div>
 
+      {/* Summary cards — linha 2 */}
+      {totalSessions > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <SmallStatCard label="Horas Jogadas" value={`${(totalMinutes / 60).toFixed(1)}h`} />
+          <SmallStatCard label="Horas / Dia" value={uniqueDays > 0 ? `${horasPorDia.toFixed(1)}h` : '—'} />
+          <SmallStatCard label="Jogos / Dia" value={uniqueDays > 0 ? jogosPorDia.toFixed(1) : '—'} />
+          <SmallStatCard label="Buy-in Médio" value={formatCurrency(avgBuyIn)} />
+        </div>
+      )}
+
+      {/* Summary cards — linha 3 */}
+      {uniqueDays > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <SmallStatCard label="Dias Positivos" value={String(diasUp)} color="var(--green)" />
+          <SmallStatCard label="Dias Negativos" value={String(diasDown)} color="var(--red)" />
+          <SmallStatCard label="Melhor Dia"
+            value={bestDayProfit > 0 ? `+${formatCurrency(bestDayProfit)}` : '—'}
+            color={bestDayProfit > 0 ? 'var(--green)' : undefined} />
+          <SmallStatCard label="Pior Dia"
+            value={worstDayProfit < 0 ? formatCurrency(worstDayProfit) : '—'}
+            color={worstDayProfit < 0 ? 'var(--red)' : undefined} />
+        </div>
+      )}
+
       {/* P&L chart */}
       {chartData.length > 1 && (
         <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
           <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Evolução do Resultado</h2>
           <PnLChart data={chartData} />
+        </div>
+      )}
+
+      {/* Bar charts row */}
+      {byPlatformFull.length > 1 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+            <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Resultado por Sala</h2>
+            <ResponsiveContainer width="100%" height={160}>
+              <BarChart data={byPlatformFull.map(r => ({ name: r.name, profit: r.profit / 100 }))} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                  {byPlatformFull.map((r, i) => (
+                    <Cell key={i} fill={r.profit >= 0 ? 'var(--green)' : 'var(--red)'} fillOpacity={0.8} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          {byDayOfWeek.length > 1 && (
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Resultado por Dia da Semana</h2>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={byDayOfWeek} margin={{ top: 4, right: 0, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                  <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Lucro']} contentStyle={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                    {byDayOfWeek.map((r, i) => (
+                      <Cell key={i} fill={r.profit >= 0 ? 'var(--cyan)' : 'var(--red)'} fillOpacity={0.7} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
@@ -346,6 +478,40 @@ export default function PerformanceClient({
 
         {/* Right column */}
         <div className="space-y-4">
+          {/* Sortable platform table */}
+          {byPlatformFull.length > 0 && (
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
+              <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Salas</h2>
+              <div className="space-y-0">
+                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 pb-2 border-b border-[var(--border)]">
+                  <span className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide">Sala</span>
+                  {(['sessions', 'profit', 'roi'] as const).map(col => (
+                    <button key={col} onClick={() => toggleSort(col)}
+                      className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)] uppercase tracking-wide hover:text-white transition-colors">
+                      {col === 'sessions' ? 'Jogos' : col === 'profit' ? 'Lucro' : 'ROI'}
+                      {sortBy === col
+                        ? sortDir === 'desc' ? <ChevronDown size={10} /> : <ChevronUp size={10} />
+                        : null}
+                    </button>
+                  ))}
+                </div>
+                {byPlatformFull.map(r => (
+                  <div key={r.name} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center py-2 border-b border-[var(--border)] last:border-0">
+                    <span className="text-xs font-medium text-[var(--foreground)] truncate">{r.name}</span>
+                    <span className="text-xs text-[var(--text-muted)] text-right tabular-nums">{r.sessions}</span>
+                    <span className={cn('text-xs font-bold tabular-nums text-right', r.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                      {r.profit >= 0 ? '+' : ''}{formatCurrency(r.profit)}
+                    </span>
+                    <span className={cn('text-xs tabular-nums text-right', r.roi >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                      {r.roi.toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Game type breakdown */}
           {byGameType.length > 0 && (
             <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Por Tipo de Jogo</h2>
@@ -356,10 +522,7 @@ export default function PerformanceClient({
                       <p className="text-xs font-medium text-[var(--foreground)]">{type}</p>
                       <p className="text-[11px] text-[var(--text-muted)]">{data.sessions} torneios</p>
                     </div>
-                    <span className={cn(
-                      'text-xs font-bold',
-                      data.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]'
-                    )}>
+                    <span className={cn('text-xs font-bold', data.profit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
                       {data.profit >= 0 ? '+' : ''}{formatCurrency(data.profit)}
                     </span>
                   </div>
@@ -368,7 +531,7 @@ export default function PerformanceClient({
             </div>
           )}
 
-          {/* Duration breakdown */}
+          {/* Volume */}
           {totalMinutes > 0 && (
             <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl p-5">
               <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Volume</h2>
@@ -378,17 +541,21 @@ export default function PerformanceClient({
                   <span className="text-xs font-bold text-white">{formatDuration(totalMinutes)}</span>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-xs text-[var(--text-muted)]">Lucro / hora</span>
+                  <span className={cn('text-xs font-bold', hourlyRate >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                    {hourlyRate >= 0 ? '+' : ''}{formatCurrency(hourlyRate)}/h
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-xs text-[var(--text-muted)]">Lucro / torneio</span>
+                  <span className={cn('text-xs font-bold', ganhoPerSession >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
+                    {ganhoPerSession >= 0 ? '+' : ''}{formatCurrency(ganhoPerSession)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-xs text-[var(--text-muted)]">Total investido</span>
                   <span className="text-xs font-bold text-white">{formatCurrency(totalInvested)}</span>
                 </div>
-                {totalSessions > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-xs text-[var(--text-muted)]">Lucro/torneio</span>
-                    <span className={cn('text-xs font-bold', totalProfit >= 0 ? 'text-[var(--green)]' : 'text-[var(--red)]')}>
-                      {formatCurrency(Math.round(totalProfit / totalSessions))}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -415,6 +582,15 @@ function StatCard({ label, value, positive, icon: Icon }: {
       )}>
         {value}
       </p>
+    </div>
+  )
+}
+
+function SmallStatCard({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-xl px-4 py-3">
+      <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-sm font-bold" style={{ color: color ?? 'var(--foreground)' }}>{value}</p>
     </div>
   )
 }

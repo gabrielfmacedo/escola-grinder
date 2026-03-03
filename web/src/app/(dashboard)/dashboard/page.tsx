@@ -18,6 +18,7 @@ export default async function DashboardPage() {
     { count: unreadCount },
     { data: courses },
     { data: upcomingEvents },
+    { data: recentLessonsRaw },
   ] = await Promise.all([
     supabase.from('profiles').select('full_name').eq('id', user!.id).single(),
     supabase.from('player_financial_summary').select('*').eq('user_id', user!.id).single(),
@@ -25,7 +26,14 @@ export default async function DashboardPage() {
     supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', user!.id).eq('is_read', false),
     supabase.from('courses').select('id, title, slug, required_plan').eq('is_published', true).order('order_index').limit(4),
     supabase.from('events').select('id, title, starts_at, type').gte('starts_at', upcomingCutoff).order('starts_at').limit(3),
+    supabase.from('lessons').select('id, title, created_at, modules(courses(title, slug, is_published))').order('created_at', { ascending: false }).limit(20),
   ])
+
+  type RawLesson = { id: string; title: string; created_at: string; modules: { courses: { title: string; slug: string; is_published: boolean } | null } | null }
+  const recentLessons = ((recentLessonsRaw ?? []) as RawLesson[])
+    .filter(l => l.modules?.courses?.is_published)
+    .slice(0, 5)
+    .map(l => ({ id: l.id, title: l.title, courseTitle: l.modules!.courses!.title, courseSlug: l.modules!.courses!.slug }))
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'Jogador'
   const hour = new Date().getHours()
@@ -94,6 +102,7 @@ export default async function DashboardPage() {
         allSessions={sessions ?? []}
         courses={courses ?? []}
         upcomingEvents={upcomingEvents ?? []}
+        recentLessons={recentLessons}
       />
     </div>
   )
