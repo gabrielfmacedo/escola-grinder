@@ -21,6 +21,8 @@ import {
   Wallet,
   Lightbulb,
   History,
+  GraduationCap,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase/types'
@@ -40,18 +42,20 @@ const NAV_PRIMARY: NavItem[] = [
   { label: 'Banca',       href: '/banca',       icon: Wallet },
   { label: 'Modo Grind',  href: '/grind',       icon: Zap },
   { label: 'Sessões',     href: '/sessoes',     icon: History },
+  { label: 'Mentoria',    href: '/mentoria',    icon: GraduationCap },
   { label: 'Calendário',  href: '/calendario',  icon: CalendarDays },
   { label: 'Ranking',     href: '/ranking',     icon: Trophy },
 ]
 
 const NAV_ADMIN: NavItem[] = [
-  { label: 'Alunos',       href: '/admin/alunos',       icon: Users,      roles: ['instructor', 'admin'] },
-  { label: 'Grupos',       href: '/admin/grupos',       icon: Flame,      roles: ['instructor', 'admin'] },
-  { label: 'Gerenciar',    href: '/admin/conteudos',    icon: BookMarked, roles: ['instructor', 'admin'] },
-  { label: 'Notif. Admin', href: '/admin/notificacoes', icon: Send,       roles: ['instructor', 'admin'] },
-  { label: 'Anúncios',     href: '/admin/anuncios',     icon: Megaphone,  roles: ['instructor', 'admin'] },
-  { label: 'Performance',  href: '/admin/performance',  icon: BarChart2,  roles: ['admin'] },
-  { label: 'Sugestões',    href: '/admin/sugestoes',    icon: Lightbulb,  roles: ['instructor', 'admin'] },
+  { label: 'Alunos',       href: '/admin/alunos',       icon: Users,             roles: ['instructor', 'admin'] },
+  { label: 'Grupos',       href: '/admin/grupos',       icon: Flame,             roles: ['instructor', 'admin'] },
+  { label: 'Mentoria',     href: '/admin/mentoria',     icon: SlidersHorizontal, roles: ['instructor', 'admin'] },
+  { label: 'Gerenciar',    href: '/admin/conteudos',    icon: BookMarked,        roles: ['instructor', 'admin'] },
+  { label: 'Notif. Admin', href: '/admin/notificacoes', icon: Send,              roles: ['instructor', 'admin'] },
+  { label: 'Anúncios',     href: '/admin/anuncios',     icon: Megaphone,         roles: ['instructor', 'admin'] },
+  { label: 'Performance',  href: '/admin/performance',  icon: BarChart2,         roles: ['admin'] },
+  { label: 'Sugestões',    href: '/admin/sugestoes',    icon: Lightbulb,         roles: ['instructor', 'admin'] },
 ]
 
 const NAV_SECONDARY: NavItem[] = [

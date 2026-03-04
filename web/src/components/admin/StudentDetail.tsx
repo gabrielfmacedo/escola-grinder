@@ -4,10 +4,13 @@ import { useState, useMemo } from 'react'
 import { TrendingUp, TrendingDown, Clock, Trophy, Target, ArrowLeft, Pencil, KeyRound, Trash2 } from 'lucide-react'
 import EditStudentModal from '@/components/admin/EditStudentModal'
 import EditAuthModal from '@/components/admin/EditAuthModal'
+import MentoriaAdminTab from '@/components/admin/MentoriaAdminTab'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatDuration } from '@/lib/utils'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+type Tab = 'performance' | 'conteudo' | 'mentoria'
 
 interface Session {
   id: string
@@ -64,6 +67,7 @@ export default function StudentDetail({
   allGroups?: Group[]
 }) {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<Tab>('performance')
   const [breakdownTab, setBreakdownTab] = useState<'platform' | 'game'>('platform')
   const [showEdit, setShowEdit] = useState(false)
   const [showEditAuth, setShowEditAuth] = useState(false)
@@ -231,6 +235,23 @@ export default function StudentDetail({
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-1 gap-1 w-fit">
+        {([['performance', 'Performance'], ['conteudo', 'Conteúdo'], ['mentoria', 'Mentoria']] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={cn(
+              'px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors',
+              activeTab === key ? 'bg-[var(--surface-3)] text-white' : 'text-[var(--text-muted)] hover:text-white'
+            )}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'mentoria' && <MentoriaAdminTab userId={profile.id} />}
+
+      {activeTab === 'performance' && (
+      <div className="space-y-6">
       {/* Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
@@ -310,36 +331,43 @@ export default function StudentDetail({
         </div>
       )}
 
-      {/* Lesson progress */}
-      {totalLessons > 0 && (
-        <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white">Progresso nas Aulas</h2>
-            <span className="text-xs text-[var(--text-muted)]">{completedLessons}/{totalLessons} concluídas</span>
-          </div>
-          <div className="divide-y divide-[var(--border)] max-h-64 overflow-y-auto">
-            {lessonProgress.map((lp, i) => (
-              <div key={i} className="flex items-center justify-between px-5 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-white truncate">{lp.lessons?.title ?? '—'}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">{lp.lessons?.courses?.title ?? '—'}</p>
-                </div>
-                <span className={cn(
-                  'shrink-0 ml-3 text-[10px] font-bold px-2 py-0.5 rounded-full',
-                  lp.completed
-                    ? 'bg-[var(--green)]/10 text-[var(--green)]'
-                    : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
-                )}>
-                  {lp.completed ? 'Concluída' : 'Pendente'}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {sessions.length === 0 && (
         <p className="text-center py-12 text-sm text-[var(--text-muted)]">Nenhum torneio registrado ainda.</p>
+      )}
+      </div>
+      )}
+
+      {activeTab === 'conteudo' && (
+        <div className="space-y-4">
+          {totalLessons === 0 ? (
+            <p className="text-center py-12 text-sm text-[var(--text-muted)]">Nenhuma aula acessada ainda.</p>
+          ) : (
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+                <h2 className="text-sm font-bold text-white">Progresso nas Aulas</h2>
+                <span className="text-xs text-[var(--text-muted)]">{completedLessons}/{totalLessons} concluídas</span>
+              </div>
+              <div className="divide-y divide-[var(--border)] max-h-[480px] overflow-y-auto">
+                {lessonProgress.map((lp, i) => (
+                  <div key={i} className="flex items-center justify-between px-5 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-white truncate">{lp.lessons?.title ?? '—'}</p>
+                      <p className="text-[11px] text-[var(--text-muted)]">{lp.lessons?.courses?.title ?? '—'}</p>
+                    </div>
+                    <span className={cn(
+                      'shrink-0 ml-3 text-[10px] font-bold px-2 py-0.5 rounded-full',
+                      lp.completed
+                        ? 'bg-[var(--green)]/10 text-[var(--green)]'
+                        : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
+                    )}>
+                      {lp.completed ? 'Concluída' : 'Pendente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
