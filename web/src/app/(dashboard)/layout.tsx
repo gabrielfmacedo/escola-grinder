@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import Sidebar from '@/components/layout/Sidebar'
-import Header from '@/components/layout/Header'
+import LayoutShell from '@/components/layout/LayoutShell'
 import GrindResumeBanner from '@/components/grind/GrindResumeBanner'
 import AnnouncementToast from '@/components/announcements/AnnouncementToast'
 
@@ -27,28 +26,23 @@ export default async function DashboardLayout({
       .maybeSingle(),
   ])
 
-  if (!profile) redirect("/login")
+  if (!profile) redirect('/login')
+  if (!profile.full_name?.trim()) redirect('/onboarding')
 
-  // First-login onboarding
-  if (!profile.full_name?.trim()) redirect("/onboarding")
+  const banner = activeGrind ? (
+    <GrindResumeBanner
+      sessionId={activeGrind.id}
+      startedAt={activeGrind.started_at}
+      label={activeGrind.tournament_name ?? (activeGrind.type === 'single' ? 'Single Buy-in' : 'Sessão Mista')}
+    />
+  ) : undefined
 
   return (
-    <div className="flex h-screen bg-[var(--background)] overflow-hidden">
-      <Sidebar role={profile.role} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header profile={profile} />
-        {activeGrind && (
-          <GrindResumeBanner
-            sessionId={activeGrind.id}
-            startedAt={activeGrind.started_at}
-            label={activeGrind.tournament_name ?? (activeGrind.type === 'single' ? 'Single Buy-in' : 'Sessão Mista')}
-          />
-        )}
-        <main className="flex-1 overflow-y-auto p-6">
-          {children}
-        </main>
-      </div>
+    <>
+      <LayoutShell profile={profile} role={profile.role} banner={banner}>
+        {children}
+      </LayoutShell>
       <AnnouncementToast />
-    </div>
+    </>
   )
 }

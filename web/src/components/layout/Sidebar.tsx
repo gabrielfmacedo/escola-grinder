@@ -67,16 +67,24 @@ interface SidebarProps {
   role: UserRole
   streak?: number
   xp?: number
+  isOpen?: boolean
 }
 
-export default function Sidebar({ role, streak = 0, xp = 0 }: SidebarProps) {
+export default function Sidebar({ role, streak = 0, xp = 0, isOpen = false }: SidebarProps) {
   const pathname = usePathname()
   const filterRole = (items: NavItem[]) =>
     items.filter(item => !item.roles || item.roles.includes(role))
   const isAdmin = role === 'admin' || role === 'instructor'
 
   return (
-    <aside className="w-[220px] shrink-0 flex flex-col h-full bg-[var(--surface-1)] border-r border-[var(--border)]">
+    <aside className={cn(
+      'w-[220px] shrink-0 flex flex-col bg-[var(--surface-1)] border-r border-[var(--border)]',
+      // Mobile: fixed overlay drawer
+      'fixed inset-y-0 left-0 z-40 h-full transition-transform duration-300 ease-in-out',
+      isOpen ? 'translate-x-0' : '-translate-x-full',
+      // Desktop: static in flex layout, always visible, no transform
+      'lg:static lg:inset-auto lg:h-full lg:translate-x-0 lg:z-auto',
+    )}>
 
       {/* ── Logo ─────────────────────────────── */}
       <Link href="/dashboard" className="px-5 pt-6 pb-5 border-b border-[var(--border)] block group">

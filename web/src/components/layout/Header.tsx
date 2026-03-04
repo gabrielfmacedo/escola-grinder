@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import { Bell, LogOut, Flame } from 'lucide-react'
+import { Bell, LogOut, Flame, Menu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn, getInitials } from '@/lib/utils'
 import type { Database } from '@/lib/supabase/types'
@@ -14,6 +14,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/cursos':               'Cursos',
   '/performance':          'Performance',
   '/banca':                'Bankroll',
+  '/sessoes':              'Sessões',
+  '/mentoria':             'Mentoria',
   '/ranking':              'Ranking',
   '/notificacoes':         'Notificações',
   '/configuracoes':        'Configurações',
@@ -25,6 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/anuncios':       'Anúncios',
   '/admin/performance':    'Performance Admin',
   '/admin/grupos':         'Grupos de Jogadores',
+  '/admin/mentoria':       'Config. Mentoria',
   '/admin/sugestoes':      'Sugestões',
   '/onboarding':           'Bem-vindo!',
 }
@@ -33,9 +36,10 @@ interface HeaderProps {
   profile: Profile
   streak?: number
   unreadCount?: number
+  onMenuClick?: () => void
 }
 
-export default function Header({ profile, streak = 0, unreadCount = 0 }: HeaderProps) {
+export default function Header({ profile, streak = 0, unreadCount = 0, onMenuClick }: HeaderProps) {
   const router = useRouter()
   const pathname = usePathname()
 
@@ -51,12 +55,21 @@ export default function Header({ profile, streak = 0, unreadCount = 0 }: HeaderP
   }
 
   return (
-    <header className="h-[52px] shrink-0 flex items-center justify-between px-6 border-b border-[var(--border)] bg-[var(--surface-1)]">
+    <header className="h-[52px] shrink-0 flex items-center justify-between px-4 lg:px-6 border-b border-[var(--border)] bg-[var(--surface-1)]">
 
-      {/* ── Título da página ── */}
-      <h1 className="text-[13px] font-semibold text-[var(--text-dim)] tracking-wide">
-        {pageTitle}
-      </h1>
+      {/* ── Left: hamburger (mobile) + page title ── */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-1.5 -ml-1 text-[var(--text-muted)] hover:text-white rounded-lg hover:bg-white/[0.06] transition-colors"
+          aria-label="Menu"
+        >
+          <Menu size={18} />
+        </button>
+        <h1 className="text-[13px] font-semibold text-[var(--text-dim)] tracking-wide">
+          {pageTitle}
+        </h1>
+      </div>
 
       {/* ── Ações à direita ── */}
       <div className="flex items-center gap-1">
