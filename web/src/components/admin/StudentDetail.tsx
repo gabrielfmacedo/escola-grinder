@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { TrendingUp, TrendingDown, Clock, Trophy, Target, ArrowLeft, Pencil } from 'lucide-react'
+import { TrendingUp, TrendingDown, Clock, Trophy, Target, ArrowLeft, Pencil, KeyRound, Trash2 } from 'lucide-react'
 import EditStudentModal from '@/components/admin/EditStudentModal'
+import EditAuthModal from '@/components/admin/EditAuthModal'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { formatCurrency, formatDuration } from '@/lib/utils'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 
 interface Session {
   id: string
@@ -65,6 +66,9 @@ export default function StudentDetail({
   const router = useRouter()
   const [breakdownTab, setBreakdownTab] = useState<'platform' | 'game'>('platform')
   const [showEdit, setShowEdit] = useState(false)
+  const [showEditAuth, setShowEditAuth] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const totalProfit = sessions.reduce((a, s) => a + s.profit_cents, 0)
   const totalInvested = sessions.reduce((a, s) => a + s.buy_in_cents, 0)
@@ -72,6 +76,17 @@ export default function StudentDetail({
   const totalSessions = sessions.length
   const totalMinutes = sessions.reduce((a, s) => a + (s.duration_minutes ?? 0), 0)
   const isProfitable = totalProfit >= 0
+
+  async function handleDelete() {
+    setDeleting(true)
+    const res = await fetch('/api/admin/update-student', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: profile.id }),
+    })
+    setDeleting(false)
+    if (res.ok) router.push('/admin/alunos')
+  }
 
   const sub = profile.subscriptions?.[0]
   const planName = sub?.plans?.name ?? '—'
@@ -138,6 +153,38 @@ export default function StudentDetail({
             onClose={() => setShowEdit(false)}
           />
         )}
+        {showEditAuth && (
+          <EditAuthModal
+            student={{ id: profile.id, full_name: profile.full_name, email: profile.email }}
+            onClose={() => setShowEditAuth(false)}
+          />
+        )}
+        {confirmDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+              <h2 className="font-bold text-white">Excluir usuário?</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                Esta ação é <span className="text-[var(--red)] font-semibold">irreversível</span>. O usuário{' '}
+                <span className="text-white font-semibold">{profile.full_name}</span> e todos os seus dados serão removidos.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-[var(--border)] text-sm text-[var(--text-dim)] hover:text-white hover:bg-white/5 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 rounded-xl bg-[var(--red)] text-white text-sm font-bold disabled:opacity-50 transition-opacity"
+                >
+                  {deleting ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[var(--gold)] to-[var(--gold-dim)] flex items-center justify-center shrink-0">
@@ -165,12 +212,22 @@ export default function StudentDetail({
               </div>
             </div>
           </div>
-          {allGroups && (
-            <button onClick={() => setShowEdit(true)}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text-dim)] hover:text-white hover:bg-white/5 transition-colors">
-              <Pencil size={12} /> Editar
+          <div className="flex items-center gap-2 shrink-0">
+            {allGroups && (
+              <button onClick={() => setShowEdit(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text-dim)] hover:text-white hover:bg-white/5 transition-colors">
+                <Pencil size={12} /> Editar
+              </button>
+            )}
+            <button onClick={() => setShowEditAuth(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold text-[var(--text-dim)] hover:text-white hover:bg-white/5 transition-colors">
+              <KeyRound size={12} /> Credenciais
             </button>
-          )}
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--red)]/30 text-xs font-semibold text-[var(--red)] hover:bg-[var(--red)]/10 transition-colors">
+              <Trash2 size={12} /> Excluir
+            </button>
+          </div>
         </div>
       </div>
 
