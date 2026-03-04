@@ -724,6 +724,91 @@ export type Database = {
           { foreignKeyName: 'suggestions_user_id_fkey'; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] }
         ]
       }
+      mentoring_notes: {
+        Row: {
+          id: string
+          user_id: string
+          admin_id: string | null
+          note_date: string
+          content: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          admin_id?: string | null
+          note_date?: string
+          content: string
+        }
+        Update: Partial<Database['public']['Tables']['mentoring_notes']['Insert']> & { updated_at?: string }
+        Relationships: [
+          { foreignKeyName: 'mentoring_notes_user_id_fkey'; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] },
+          { foreignKeyName: 'mentoring_notes_admin_id_fkey'; columns: ['admin_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] }
+        ]
+      }
+      stat_configs: {
+        Row: {
+          id: string
+          name: string
+          unit: string
+          ideal_min: number | null
+          ideal_max: number | null
+          description: string | null
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          name: string
+          unit?: string
+          ideal_min?: number | null
+          ideal_max?: number | null
+          description?: string | null
+          sort_order?: number
+        }
+        Update: Partial<Database['public']['Tables']['stat_configs']['Insert']>
+        Relationships: []
+      }
+      player_stat_overrides: {
+        Row: {
+          id: string
+          user_id: string
+          stat_config_id: string
+          ideal_min: number | null
+          ideal_max: number | null
+        }
+        Insert: {
+          user_id: string
+          stat_config_id: string
+          ideal_min?: number | null
+          ideal_max?: number | null
+        }
+        Update: Partial<Database['public']['Tables']['player_stat_overrides']['Insert']>
+        Relationships: [
+          { foreignKeyName: 'player_stat_overrides_user_id_fkey'; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] },
+          { foreignKeyName: 'player_stat_overrides_stat_config_id_fkey'; columns: ['stat_config_id']; referencedRelation: 'stat_configs'; referencedColumns: ['id'] }
+        ]
+      }
+      player_stats: {
+        Row: {
+          id: string
+          user_id: string
+          stat_config_id: string
+          value: number
+          recorded_at: string
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          stat_config_id: string
+          value: number
+          recorded_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['player_stats']['Insert']>
+        Relationships: [
+          { foreignKeyName: 'player_stats_user_id_fkey'; columns: ['user_id']; referencedRelation: 'profiles'; referencedColumns: ['id'] },
+          { foreignKeyName: 'player_stats_stat_config_id_fkey'; columns: ['stat_config_id']; referencedRelation: 'stat_configs'; referencedColumns: ['id'] }
+        ]
+      }
     }
     Views: {
       poker_session_results: {

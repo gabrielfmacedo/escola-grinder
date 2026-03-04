@@ -192,7 +192,7 @@ export default function MentoriaPlayer() {
                             tickFormatter={v => `${v}${cfg.unit}`} width={36} />
                           <Tooltip
                             contentStyle={{ background: 'var(--surface-1)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }}
-                            formatter={(v: number) => [`${v}${cfg.unit}`, cfg.name]}
+                            formatter={(v: number | string | undefined) => [v !== undefined ? `${v}${cfg.unit}` : '—', cfg.name]}
                           />
                           {/* Ideal band reference lines */}
                           <Line type="monotone" dataKey="value" stroke="var(--cyan)" strokeWidth={2} dot={{ r: 3 }} />
